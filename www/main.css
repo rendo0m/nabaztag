@@ -1,18 +1,42 @@
 body
 {
 	background: white; 
-	/*
-	background-position:bottom; 
-	-moz-background-size: 0%;           /* Gecko 1.9.2 (Firefox 3.6) */
-    -o-background-size: 5%;           /* Opera 9.5 */
-    -webkit-background-size: 5%;           /* Safari 3.0 */
-    background-size: 5%;           /* Gecko 2.0 (Firefox 4.0) and other CSS3-compliant browsers */
-	*/
 }
 
 th
 {
 	background-color:#DCDCDC;
+}
+
+.th{
+	display:table-cell;
+	background-color:#DCDCDC;
+	padding: 5px;
+	border:1px solid white;	
+	font-size: larger;
+	font-weight: bold;
+	text-align: center;
+	white-space: nowrap;
+}
+
+.tr{
+	display:table-row;
+}
+
+.td{
+	display:table-cell;
+	border:1px solid lightgray;
+	padding-left: 10px;
+	padding-right: 100px;
+	padding-top:10px;
+	padding-bottom: 10px;
+}
+
+.table{
+	display:table;
+	width:90%;
+	margin-left: 5%;
+	margin-right: 5%;
 }
 
 new
@@ -247,21 +271,21 @@ indent
 {
 	top:55px;
 	left:70px;
-	content:url(new_rabbit.jpg) no-repeat;
+	background:url(new_rabbit.jpg) no-repeat;
 }
 
 #cork_map a#link2
 {
 	top:55px;
 	left:230px;
-   	content:url(update_rabbit.jpg) no-repeat;
+   	background:url(update_rabbit.jpg) no-repeat;
 }
 
 #cork_map a#link3
 {
 	top:55px;
 	left:390px;
-	content:url(setup_info.jpg) no-repeat;
+	background:url(setup_info.jpg) no-repeat;
 
 }
 
@@ -269,22 +293,21 @@ indent
 {
 	top:55px;
 	left:550px;
-	content:url(check_rabbit.jpg) no-repeat;
-
+	background:url(check_rabbit.jpg) no-repeat;
 }
 
 #cork_map a#link5
 {
 	top:220px;
 	left:70px;
-	content:url(issues.jpg);
+	background:url(issues.jpg) no-repeat;
 }
 
 #cork_map a#link6
 {
 	top:220px;
 	left:230px;
-	content:url(api_log.jpg) no-repeat;
+	background:url(api_log.jpg) no-repeat;
     
 }
 
@@ -292,7 +315,7 @@ indent
 {
 	top:220px;
 	left:390px;
-    content:url(errors.jpg) no-repeat;
+    background:url(errors.jpg) no-repeat;
 
 }
 
@@ -300,6 +323,6 @@ indent
 {
 	top:220px;
 	left:550px;
-    content:url(rabbits.jpg);
+    background:url(rabbits.jpg) no-repeat;
 }
 

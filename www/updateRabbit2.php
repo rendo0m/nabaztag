@@ -71,7 +71,7 @@ if(strlen($serialNbr) < 12)
     
     if(substr_count($serialNbr, ':') < 5)
     {
-        echo "'$serNbr' is not a valid serial number.  Remember to include the colons.  $back";
+        echo "'$serialNbr' is not a valid serial number.  Remember to include the colons.  $back";
         sleep(2);
         return;
     };
@@ -200,38 +200,38 @@ if($reboot == 1)
 <tr>
     <td>Weekday Wake Up Time </td>
     <td><select name="ddlWake">
-        <? $hour=$wakeHour; include("./subroutines/time_picker.php"); ?>
+        <?php $hour=$wakeHour; include("./subroutines/time_picker.php"); ?>
         </select>
     </td>
 </tr>
 <tr>
     <td>Weekend Wake Up Time </td>
     <td><select name="ddlWeekendWake">
-        <? $hour=$weekendWakeHour; include("./subroutines/time_picker.php"); ?>
+        <?php $hour=$weekendWakeHour; include("./subroutines/time_picker.php"); ?>
         </select>
     </td>
 </tr>
 <tr>
     <td>Bed Time </td>
     <td><select name="ddlBedTime">
-        <? $hour=$sleepHour; include("./subroutines/time_picker.php"); ?>
+        <?php $hour=$sleepHour; include("./subroutines/time_picker.php"); ?>
         </select>
     </td>
 </tr>
 <tr>
     <td>Temperature </td>
     <td><select name="ddlTemp">
-        <? include("./subroutines/temp_picker.php"); ?>
+        <?php include("./subroutines/temp_picker.php"); ?>
         </select>
     </td>
 </tr>
 <tr>
     <td>Bottom LED Color</td>
-    <td><select name="ddlBottomColor"> <!--<? if($version == 1) echo 'disabled' ?> > breaks due to inner join -->
-                 <? $s_color = $bottomColor; include("./subroutines/color_picker.php");  ?>
+    <td><select name="ddlBottomColor"> <!--<?php if($version == 1) echo 'disabled' ?> > breaks due to inner join -->
+                 <?php $s_color = $bottomColor; include("./subroutines/color_picker.php");  ?>
         </select>
         
-        <? if($version == 1) echo 'V2 only'; ?>
+        <?php if($version == 1) echo 'V2 only'; ?>
     </td>
 </tr>
 
@@ -239,18 +239,18 @@ if($reboot == 1)
 <tr>
     <td>Idle Behavior</td>
     <td><select name="ddlIdle">
-        <? $s_idle = $idle; include("./subroutines/idle_picker.php"); ?>
+        <?php $s_idle = $idle; include("./subroutines/idle_picker.php"); ?>
         </select> 
-        <? if($version==1) echo 'Cheerlights for V1; otherwise V2 only'; ?>
+        <?php if($version==1) echo 'Cheerlights for V1; otherwise V2 only'; ?>
     </td>
 </tr>
 
 <tr>
     <td>Button Behavior</td>
     <td><select name="ddlButton"> 
-        <? $s_button = $button; include("./subroutines/button_picker.php"); ?> 
+        <?php $s_button = $button; include("./subroutines/button_picker.php"); ?> 
         </select> 
-        <? if($version==1) echo 'V2 only'; ?>
+        <?php if($version==1) echo 'V2 only'; ?>
     </td>
 </tr>
 
@@ -258,7 +258,7 @@ if($reboot == 1)
     <td>Single Clock Behavior</td>
     
     <td><input type=checkbox <?php if($chkClock == 1) echo 'checked'; ?> id=chkClock name=chkClock>
-    <? if($version==1) echo 'V2 only'; ?>
+    <?php if($version==1) echo 'V2 only'; ?>
     </td>
 </tr>
 
@@ -399,7 +399,7 @@ Still have a question? <a href="sample.jpg">See a sample schedule</a>
 </fieldset>
 <P>
 
-<?
+<?php
 /******************************************
  * Get RSS
  ******************************************/
@@ -429,17 +429,17 @@ Here you can setup your own RSS feed.  Enter the URL to the feed, click validate
 <table cellpading=0 cellspacing=4>
     <tr>
         <td>RSS URL 1</td>
-        <td><input type=text id=txtRSS1 name=txtRSS1 maxlength=255 size=100 value=<? if(isset($rss_url[0])) echo $rss_url[0]; ?>></td>
+        <td><input type=text id=txtRSS1 name=txtRSS1 maxlength=255 size=100 value=<?php if(isset($rss_url[0])) echo $rss_url[0]; ?>></td>
         <td><input type=submit name=btnValidate1 value=Validate></td>
     </tr>
     <tr>
         <td>RSS URL 2</td>
-        <td><input type=text id=txtRSS2 name=txtRSS2 maxlength=255 size=100 value=<? if(isset($rss_url[1])) echo $rss_url[1]; ?>></td>
+        <td><input type=text id=txtRSS2 name=txtRSS2 maxlength=255 size=100 value=<?php if(isset($rss_url[1])) echo $rss_url[1]; ?>></td>
         <td><input type=submit name=btnValidate2 value=Validate></td>
     </tr>
     <tr>
         <td>RSS URL 3</td>
-        <td><input type=text id=txtRSS3 name=txtRSS3 maxlength=255 size=100 value=<? if(isset($rss_url[2])) echo $rss_url[2]; ?>></td>
+        <td><input type=text id=txtRSS3 name=txtRSS3 maxlength=255 size=100 value=<?php if(isset($rss_url[2])) echo $rss_url[2]; ?>></td>
         <td><input type=submit name=btnValidate3 value=Validate></td>
     </tr>
 
@@ -448,14 +448,27 @@ Here you can setup your own RSS feed.  Enter the URL to the feed, click validate
 
 <P>
 <fieldset><legend><b>Speech (V2 only)</b></legend>
-Here you can send a message for your rabbit to speak. Enter the message and click speak to send.  
+Send a message for your rabbit to speak. Enter the message and click speak to send.  
 This message will not be saved.
 
 <table cellpading=0 cellspacing=4>
     <tr>
         <td>&nbsp;&nbsp;&nbsp;&nbsp;Message</td>
-        <td><input type=text id=txtTTS name=txtTTS maxlength=100 size=100></td>
-        <td><input type=submit name=btnSpeak value=Speak></td>
+        <td><input type="text" id="txtTTS" name="txtTTS" maxlength=100 size=100></td>
+        <td><input type="submit" name="btnSpeak" value="Speak"></td>
+    </tr>
+</table>
+</fieldset>
+
+<P>
+<fieldset><legend><b>Stream (V2 only)</b></legend>
+Begin playing a stream on your rabbit by providing a streaming link with a .m3u extension (32kbps recommended).
+
+<table cellpading=0 cellspacing=4>
+    <tr>
+        <td>&nbsp;&nbsp;&nbsp;&nbsp;Link</td>
+        <td><input type="text" id="txtStream" name="txtStream" maxlength=100 size=100></td>
+        <td><input type="submit" name="btnStream" value="Stream"></td>
     </tr>
 </table>
 </fieldset>
@@ -537,7 +550,7 @@ For this to work, your rabbit must be <a href="check_rabbit_entry.php">reaching 
 
 
 
-<? 
+<?php 
 
 mysqli_close($con); 
 

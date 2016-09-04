@@ -28,6 +28,7 @@ along with NabaztagLives.  If not, see <http://www.gnu.org/licenses/>.
 date_default_timezone_set('America/Chicago'); //for warning
 include './subroutines/logError.php';
 ?>
+<doctype html>
 <html>
 <META HTTP-EQUIV="Pragma" CONTENT="no-cache">
 <META HTTP-EQUIV="CACHE-CONTROL" CONTENT="NO-CACHE">

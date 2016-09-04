@@ -28,21 +28,24 @@ var HARDWARE=4;;
 var DNSLOCAL=1597;;
 }
 
-var GREEN=0x00ff00;;
 var AMBER=0xff8000;;
 var BLACK=0x000000;;
-var VIOLET=0xff00ff;;
-var RED=0xff0000;;
-var YELLOW=0xffff00;;
-var TEAL=0x00ffff;;
-var WHITE=0xffffff;;  
-var WARMWHITE=0xe0e0e0;;
+var OFF=0x000000;;
+var BLUE=0x0000ff;;
 var CYAN=0x00a0ff;;
-var BLUE=0x0000f0;;
-var MAGENTA=0xff8080;;
+var GRAY=0x808080;;
+var GREEN=0x00ff00;;
+var MAGENTA=0xff00ff;;
+var OLDLACE=0xfdf5e6;;
+var ORANGE=0xffa500;;
+var PINK=0xffc0cb;;
 var PURPLE=0xff00ff;;
-var cheer=0;;
-//cck
+var RED=0xff0000;;
+var TEAL=0x00ffff;;
+var VIOLET=0xff00ff;;
+var WARMWHITE=0xfdf5e6;;
+var WHITE=0xffffff;;  
+var YELLOW=0xffff00;;
 
 var BOTTOMRED=0x010000;;
 var BOTTOMGREEN=0x000100;;
@@ -52,9 +55,7 @@ var BOTTOMVIOLET=0x010001;;
 var BOTTOMTEAL=0x000101;;
 var BOTTOMWHITE=0x010101;;
 var BOTTOMORANGE=0x010101;;
-var GRAY=0x808080;;
-var PINK=0xff8080;;
-var ORANGE=0xffa500;;
+
 var COLORk=0xffff80;;
 var COLORl=0x8080ff;;
 var COLORm=0xff80ff;;
@@ -66,11 +67,8 @@ var wav_first;;
 var wav_url;;
 var wav_save_fifo;;
 
-//end cck
-
 proto buttoncheckevent 0;;
 
-//cck moved these here
 var chordata;;
 var chorindex;;
 var chortimescale;;
@@ -536,9 +534,14 @@ var TCPREAD=1;;
 var TCPCLOSE=-1;;
 var TCPSTART=2;;
 
-var TCPMAX=1024;; //1024;;  
+var TCPMAX=1024;;   
 
 type Tcp=[stateT locT dstT locpT dstpT seqT ackT cbT macT lastsentT retryT locksendT enableT];;
+
+//MSS orig 5\$b4 (1460) tried 2\$18 (536)
+//window size orig 65535 ($ff\$ff) tried $39\$08 (14600) 
+
+var tcpBusy=0;; //cck
 
 fun mktcp_ ipsrc ipdst portsrc portdst seq ack flag content=
 	let strcatlist 
@@ -573,7 +576,6 @@ fun mktcp_ ipsrc ipdst portsrc portdst seq ack flag content=
 	);;
 
 fun mktcp t flag content=
-//	Secholn "mktcp "; Secho "seq "; SEQecho t.seqT 0 1; Secho "ack "; SEQecho t.ackT 0 1;
 	mktcp_ t.locT t.dstT t.locpT t.dstpT t.seqT t.ackT flag content;;
 
 fun resendtcp t=
@@ -633,13 +635,12 @@ fun findtcp l localp dstp src=
 	else findtcp tl l localp dstp src;;
 
 fun sendclose t=
-	Secholn "## sendclose";
 	sendtcp t mktcp t TFIN+TACK nil;
 	set t.stateT=STFIN;
+	set tcpBusy=0;  //cck
 	0;; 
 
 fun cbnettcp src mac=
-	Secho "t";
 	let /*Iecholn*/ strgetword src 8+20+2 -> locp in
 	let /*Iecholn*/ strgetword src 8+20+0 -> dstp in
 	let findtcp ltcp locp dstp src -> t in
@@ -649,19 +650,17 @@ fun cbnettcp src mac=
 		let /*SEQecho*/ (strsub src 8+28 4) /*0 1*/-> rack in
 		if st==STSYN then
 		(
-			Secholn "stsyn";
+			set tcpBusy=1; //cck
 			if (flag==TSYN+TACK) && !vstrcmp (SEQecho(t.seqT)0 1) 0 rack 0 4 then
 			(
 				set t.ackT=SEQecho (netSeqAdd rseq 1) 0 1;
 				sendtcp t mktcp t TACK nil;
 				set t.stateT=STEST;
 				set t.lastsentT=nil;
-//				Secholn "call TCPWRITE";
 				call t.cbT [t TCPWRITE nil]
 			)
 			else
 			(
-//				Secholn "TSRT+TACK";
 				sendtcp t mktcp t TRST+TACK nil;
 				remtcp t;
 				nil
@@ -675,10 +674,6 @@ fun cbnettcp src mac=
 			(
 				if datalen then
 				(
-	//				dump src;
-	//				Iecholn iplen;
-	//				Iecholn tcplen;
-//					Secho "update ackT : add ";
 					set t.ackT=netSeqAdd t.ackT datalen
 				);
 				if flag&TFIN then
@@ -701,7 +696,8 @@ fun cbnettcp src mac=
 						nil
 					)
 				)
-				else (Secholn "##bad ack"; SEQecho t.seqT 0 1;SEQecho rack 0 1; nil);
+				else(led 0 RED; nil); //cck
+				//else (Secholn "##bad ack"; SEQecho t.seqT 0 1;SEQecho rack 0 1; nil);
 				if datalen then
 					let 8+20+headerlen src -> start in
 					let strsub src start datalen -> data in
@@ -711,6 +707,7 @@ fun cbnettcp src mac=
 				(
 					sendtcp t mktcp t TFIN+TACK nil;
 					remtcp t;
+					set tcpBusy=0; //cck
 					call t.cbT [t TCPCLOSE nil]
 				)
 			)
@@ -721,6 +718,7 @@ fun cbnettcp src mac=
 				set t.ackT=SEQecho (netSeqAdd rseq 1) 0 1;
 				sendtcp t mktcp t TACK nil;
 				remtcp t;
+				set tcpBusy=0; //cck
 				nil
 			)
 		else if st==STLISTEN then
@@ -765,6 +763,8 @@ fun closetcp t=
 		0
 	)
 	else sendclose t;
+	set tcpBusy=0; //cck
+	led 0 OFF; //cck
 	0;;
 
 fun tcpcb t cb= set t.cbT=cb;;
@@ -792,6 +792,8 @@ fun tcptime =
 
 fun resettcp=
 	set ltcp=nil;
+	set tcpBusy=0; //cck
+	led 0 RED; //cck
 	0;;
 
 // -------------- TDP fin
@@ -858,7 +860,7 @@ fun mkdhcpip mac=
 	);;
 
 fun cbnetdhcp src macfrom hostip=
-	Secholn "<dhcp"; MACecho macfrom 0 1;
+	//Secholn "<dhcp"; MACecho macfrom 0 1;
 	let strget src 0 -> x in
 	let MACecho (strsub src 28 6)0 1 -> mac in
 	if x==2 && !strcmp mac mymac then
@@ -867,26 +869,26 @@ fun cbnetdhcp src macfrom hostip=
 		let extractdhcp src 240 0 nil nil nil nil nil->[type lease submask dns gateway _] in
 		if type==DHCP_OFFER then
 		(
-			Secholn ">>>>>>>>>>>>>>>OFFER";
+			//Secholn ">>>>>>>>>>>>>>>OFFER";
 			udpsend netip 68 ipbroadcast 67 (mkdhcp DHCP_REQUEST netip hostip newip) macbroadcast;
 			nil
 		)
 		else if type==DHCP_ACK then
 		(
-			Secholn ">>>>>>>>>>>>>>>ACK";
-			Secho "server    ";IPecho hostip 0 1;
-			Secho "ip        ";IPecho set netip=newip 0 1;
-			Secho "type      ";Iecholn type;
-			Secho "leasetime ";Iecholn lease;
-			Secho "submask   ";IPecho set netmask=submask 0 1;
-			Secho "dns       ";IPecho set netdns=dns 0 1;
-			Secho "gateway   ";IPecho set netgateway=gateway 0 1;
+			//Secholn ">>>>>>>>>>>>>>>ACK";
+			//Secho "server    ";IPecho hostip 0 1;
+			//Secho "ip        ";IPecho set netip=newip 0 1;
+			//Secho "type      ";Iecholn type;
+			//Secho "leasetime ";Iecholn lease;
+			//Secho "submask   ";IPecho set netmask=submask 0 1;
+			//Secho "dns       ";IPecho set netdns=dns 0 1;
+			//Secho "gateway   ";IPecho set netgateway=gateway 0 1;
 			nil
 		)
 	);;
 
 fun cbnetdhcp67 src macfrom hostip=
-	Secholn "<dhcp"; MACecho macfrom 0 1;
+	//Secholn "<dhcp"; MACecho macfrom 0 1;
 	let strget src 0 -> x in
 	let MACecho (strsub src 28 6)0 1 -> mac in
 	if x==1 /*&& !strcmp mac mymac*/ then
@@ -896,14 +898,14 @@ fun cbnetdhcp67 src macfrom hostip=
 		let mkdhcpip macfrom -> newip in
 		if type==DHCP_DISCOVER then
 		(
-			Secholn ">>>>>>>>>>>>>>>DISCOVER";
+			//Secholn ">>>>>>>>>>>>>>>DISCOVER";
 //			dump src;
 			udpsend netip 67 ipbroadcast 68 (mkdhcpans DHCP_OFFER tid newip dmac) macbroadcast;
 			nil
 		)
 		else if type==DHCP_REQUEST then
 		(
-			Secholn ">>>>>>>>>>>>>>>REQUEST";
+		//	Secholn ">>>>>>>>>>>>>>>REQUEST";
 //			dump src;
 			udpsend netip 67 ipbroadcast 68 (mkdhcpans DHCP_ACK tid newip dmac) macbroadcast;
 			nil
@@ -926,10 +928,10 @@ fun startdhcpserver=
 // --------------- net HOOK debut
 
 fun net src mac=
-  Secho ">>>> net ";
-	Secho "n ";//MACecho mac 0 1;
-	Secholn " dump src";
-	dump src;
+  //Secho ">>>> net ";
+	//Secho "n ";//MACecho mac 0 1;
+	//Secholn " dump src";
+	//dump src;
 	let strget src 7 -> p in
 	(
 		if p==6 then cbnetarp src mac // ARP
@@ -1022,8 +1024,8 @@ fun nettcp t val msg=
 	if val==TCPSTART then
 		let listswitch ltcp atoi msg -> cb in
 		(
-			if cb==nil then Secholn "callback is nil"
-			else Secholn "callback is not nil";
+			//if cb==nil then Secholn "callback is nil"
+			//else Secholn "callback is not nil";
 			set ltcp=[t cb]::ltcp;
 			call cb [t val msg]
 		)
@@ -1069,7 +1071,7 @@ fun parseans s i n=
 	else parseans s (j+10+strgetword s j+8) n-1;;
 	
 fun parsemsg s=
-  Secho ">>> parsemsg s= ";Secholn s;
+  //Secho ">>> parsemsg s= ";Secholn s;
 	let strgetword s 0 -> id in
 	let strgetword s 2 -> code in
 	let strgetword s 4 -> nbqu in
@@ -1110,7 +1112,7 @@ fun dnsreq domain cb=
 fun selectbyid d v= d.idD==v;;
 
 fun cbnetdns msg mac ipfrom= 
-  Secho ">>>> cbnetdns msg = ";Secholn msg;
+  //Secho ">>>> cbnetdns msg = ";Secholn msg;
 	let strgetword msg 0 -> id in
 	let parsemsg msg -> ip in
 	let hd select ldnsreq id #selectbyid -> x in
@@ -1136,7 +1138,7 @@ fun dnstime=
 
 
 fun startdnsclient=
-  Secholn ">>>> startdnsclient";
+  //Secholn ">>>> startdnsclient";
 	regudp DNSLOCAL #cbnetdns;
 	set ldnsreq=nil;
 	set ldns=nil;
@@ -1161,8 +1163,10 @@ type Httpreq=[cnxH inputH outputH indexH cbH typeH stateH aliveH];;
 
 // callback de lecture sur la socket d'une requête
 fun tcpread cnx input httpreq=
+	led 0 VIOLET; //cck
 	if input==nil ||0==strlen input then	// erreur ou fin
 	(	closetcp cnx;	// on ferme la socket
+		led 0 OFF; //cck
 		if httpreq.typeH==HTTP_NORMAL then call httpreq.cbH [httpreq strcatlist rev httpreq.inputH nil]	// on retourne ce qui a été reçu
 		else call httpreq.cbH [httpreq nil]
 	)
@@ -1191,6 +1195,7 @@ fun tcpread cnx input httpreq=
 			if i+4<strlen s then call httpreq.cbH [httpreq strsub s i+4 nil];
 			nil
 		);
+		led 0 OFF; //cck
 		nil
 	);;
 
@@ -1241,7 +1246,7 @@ fun tcpevent t val msg sock=
 
 
 fun httpsendreq ip x=
-	Secho "found ip>>>>>>>>>>>>>>>>>>>>>>>>>"; Secholn ip;
+	//Secho "found ip>>>>>>>>>>>>>>>>>>>>>>>>>"; Secholn ip;
 	let x->[port httpreq] in
 	if ip==nil then (call httpreq.cbH [httpreq nil]; nil)
 	else
@@ -1330,7 +1335,7 @@ fun cbrec s=
 //	alaw2wav buffy 0 buffx 0 505 1;
 	set s=wav2adp strnew 256 0 buff 0 505*2;
 */
-	Iecho strlen s; Secho "!";
+	//Iecho strlen s; Secho "!";
 	let 255-(Iecholn sqrt recVol s 0) -> vol in
 	let 255-((vol*vol)>>8) -> vol in
 	let vol<<16 -> vol in
@@ -1353,14 +1358,14 @@ fun itobin4 i=
 fun liststrlen l r=	if l==nil then r else liststrlen tl l r+strlen hd l;;
 
 fun mkriff ldata=
-	Secho "mkriff len=";
+	//Secho "mkriff len=";
 	let Iecholn liststrlen ldata 0 -> len in
 	(strcatlist "RIFF"::(itobin4 len+52)::"WAVEfmt \$14\0\0\0\$11\0\1\0\$40\$1f\0\0\$d7\$0f\0\0\0\1\4\0\2\0\$f9\01"::
 	"fact\4\0\0\0"::(itobin4 (len>>8)*505)::"data"::(itobin4 len)::nil)::ldata;;
 
 fun recstart =
 	recStop;
-	Secholn "record";
+	//Secholn "record";
 	set recording=1;
 	set lrec=nil;
 	recStart 8000 0 #cbrec;;
@@ -1387,8 +1392,8 @@ var WAV_EOF=2;;
 var WAV_BUFFER_STARTSIZE=80000;; //was 80000;; setting this to 1 caused a lot of cracking
 var WAV_BUFFER_MAXSIZE=400000;; //400000;;
 
-var WAV_END_TIMEOUT=2500;;  //was 500 
-var WAV_NET_TIMEOUT=13000;; //10000;; //always times out on 2nd msg cck oink
+var WAV_END_TIMEOUT=500;; //2500;;   
+var WAV_NET_TIMEOUT=10000;; 
 
 var wav_end_timeout;;
 
@@ -1456,12 +1461,6 @@ var mp3len;;
 var my_index;;
 var bytes_fed;;
 
-//fun playWav = 
-    //set wav_first=0;;
-    //wavstarthttp wav_url;;
-    
-var feed_delay;;
-
 fun _wavcb i = 
 
     //Secholn ">> _wavcb"; set wav_lasttime=time_ms; Iecho i;Secho ":cbplay\n";
@@ -1471,11 +1470,11 @@ fun _wavcb i =
 	    /*
 	    if wav_state==WAV_EOF then 
 	    (
-	        Secholn ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> WAV_EOF";
+	        //Secholn ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> WAV_EOF";
 	        
 	        if (wav_first) then //play the saved mp3
 	        (
-	            Secholn ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> repeat";
+	            //Secholn ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> repeat";
 	            set wav_first=0;
 	            playFeed nil nil nil;
 	            set wav_fifo = wav_save_fifo;  //the saved mp3 buffer
@@ -1493,20 +1492,15 @@ fun _wavcb i =
 	    if wav_state==WAV_EOF then playFeed nil nil nil    //stop the player
 	    else 
 	    ( 
-	        if !wav_buffering then Secholn ">>>>buffering..............."; 
+	        //if !wav_buffering then Secholn ">>>>buffering..............."; 
 	        set wav_buffering=1 
 	    )
 	) 
 	else 
 	( 
-	    if(wav_buffering) then Secholn "buffering";
-        //if(wav_state==WAV_EOF) then Secholn "WAV_EOF reached";
-    
 	    if wav_buffering && (wav_state==WAV_EOF || (slistlen wav_fifo)>=WAV_BUFFER_STARTSIZE) then set wav_buffering=0;
 
-        //Secho "wav len is "; Iecholn slistlen wav_fifo;
-    
-    	if !wav_buffering then let hd wav_fifo -> sample in  //get 1st list item from wav file  		
+        if !wav_buffering then let hd wav_fifo -> sample in  //get 1st list item from wav file  		
         	let strlen sample -> len in                      //sample length is usually 1024 bytes
             ( 
                 //set wav_index=wav_index+playFeed sample /*Iecho*/ wav_index nil; 
@@ -1514,45 +1508,16 @@ fun _wavcb i =
                 //Secho "wav_index = ";Iecho wav_index; Secho ", len = ";Iecho len;Secho ", sample = ";Iecholn strlen sample;
                 set bytes_fed = playFeed sample wav_index nil;  //wav_index contains # bytes to load to audio buffer
                       
-                /*
-                      
-                if bytes_fed < 1 && wav_index > 0 && len > 0 then 
-                (
-                    //set feed_delay = time_ms + 500;  //delay is millisecond
-               
-                    //Secholn "refeed";
-                    //while time_ms < feed_delay do Secholn "refeed";
-                    
-                    while bytes_fed < 1 do
-                    (
-                        //Secho "refeeding... bytes_fed = ";Iecho bytes_fed;Secho ", wav_index = ";Iecho wav_index;Secho ", sample = ";Iecholn strlen sample;
-                        set bytes_fed = playFeed sample wav_index nil;
-                        0
-                    );
-                    
-                    0
-                );
-                */
-                 
                 //for i=0;i<99 do Secholn "looping...";  //reproduces the cracking
-                
-                //Secho "bytes_fed = "; Iecholn bytes_fed;
                 
                 set wav_index = wav_index + bytes_fed; 
                
-                //Secho "wav_index = "; Iecholn wav_index;
-        	    //Secho "len       = "; Iecholn len;
-        	    
-        	    if wav_index>=len then //fed?
+          	    if wav_index>=len then //fed?
         	    ( 
         	        set wav_index=0; 
         	        set wav_fifo=tl wav_fifo;  //remove 1st list item 
-        	        //Secho "new wav_fifo = "; Iecholn slistlen wav_fifo;
         	   	    if wav_http!=nil then if (slistlen wav_fifo)<WAV_BUFFER_MAXSIZE then httpenable wav_http 1 
         	   	)
-        	    
-        	   	
-        	   	
             ) 
         ); 
         //Secho "wav_first = "; Iecholn wav_first;
@@ -1560,13 +1525,12 @@ fun _wavcb i =
     0;;
 
 fun _wavstartnow =
-  Secholn ">>>> _wavstartnow";
+  //Secholn ">>>> _wavstartnow";
  	set wav_index=0;
  	set wav_sample=nil; //cck
 	set wav_buffering=1;   
-	Secholn ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> _wavstartnow";
+	//Secholn ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> _wavstartnow";
 	playStart 1024 #_wavcb;;  //was 1024, tried 256, 512, 2048, 4096, 8192 - no dif
-    //playStart slistlen wav_fifo #_wavcb;;
     
 fun wavstartlocalEx l timeout=
 	wavstop;
@@ -1580,27 +1544,13 @@ fun wavstartlocalEx l timeout=
 
 fun wavstartlocal l=wavstartlocalEx l WAV_END_TIMEOUT;;
 
-/*
-fun itobin4 i=strcatlist (ctoa i)::(ctoa i>>8)::(ctoa i>>16)::(ctoa i>>24)::nil;;
-fun itobin2 i=strcatlist (ctoa i)::(ctoa i>>8)::nil;;
-
-fun mkwav freq channel bps=
-	let strcatlist 
-		"WAVEfmt "::(itobin4 0x12)::
-			(itobin2 1)::(itobin2 channel)::
-			(itobin4 freq)::(itobin4 freq*channel*bps/8)::
-			(itobin2 channel*bps/8)::(itobin4 bps)::
-		"data"::(itobin4 0)::nil -> c in
-	strcatlist "RIFF"::(itobin4 (strlen c))::c::nil;; 
-*/
-
 fun _wavcbhttp httpreq req=  //saves the mp3 to a buffer and then calls _wavstartnow to play it when downloaded
-    Secholn ">> _wavcbhttp";
+    //Secholn ">> _wavcbhttp";
 	set wav_lastnet=time_ms;
 	
 	if req==nil then
 	(
-		Secholn ">>>>>>>>>>>>>>>>>>>>>>>>>>>>><end of file";
+		//Secholn ">>>>>>>>>>>>>>>>>>>>>>>>>>>>><end of file";
 		set wav_state=WAV_EOF;  //must be eof or won't fetch rest of wav 
 		if wav_fifo!=nil then set wav_fifo=conc wav_fifo (wavgetzeros)::nil;
 		
@@ -1609,8 +1559,7 @@ fun _wavcbhttp httpreq req=  //saves the mp3 to a buffer and then calls _wavstar
 		(
 			set wav_fifo=tl wav_fifo;
 			if wav_fifo==nil then wavstop
-			else _wavstartnow  //cck commented out
-			
+			else _wavstartnow  
 		);
 		0
 	)
@@ -1633,7 +1582,7 @@ fun _wavcbhttp httpreq req=  //saves the mp3 to a buffer and then calls _wavstar
 		)
 		else if n>WAV_BUFFER_MAXSIZE then
 		(
-			Secholn "\n>>>>>>>>>>>>>>http wait";
+			//Secholn "\n>>>>>>>>>>>>>>http wait";
 			httpenable httpreq 0
 		);
 		nil
@@ -1642,7 +1591,7 @@ fun _wavcbhttp httpreq req=  //saves the mp3 to a buffer and then calls _wavstar
 	0;;
 
 fun wavstarthttp url =             //downloads the mp3 via a callback to _wavcbhttp
-    Secholn ">>wavstarthttp";
+    //Secholn ">>wavstarthttp";
 	//wavstop;
 	//gc; //cck call garbage collector
 	//sndRefresh;  //cck call audio chip refresh
@@ -1654,7 +1603,7 @@ fun wavstarthttp url =             //downloads the mp3 via a callback to _wavcbh
 	set wav_buffering=1;
 	set wav_lasttime=nil;
 	set wav_lastnet=time_ms;
-	Secho "url = ";Secholn url;
+	//Secho "url = ";Secholn url;
 	set wav_url=url;
 	//sndVol 255;  //off
 	//httprequest verb url postdata cb type
@@ -1667,7 +1616,7 @@ fun wavtime =
 	(
 		if wav_http!=nil then
 		(
-			Secholn "####wavhttp abort";
+			//Secholn "####wavhttp abort";
 			httpabort wav_http;
 			set wav_http=nil;
 			_wavcbhttp wav_http nil;
@@ -1752,7 +1701,7 @@ fun earDetectRun=
 		let (motorget 0)+(motorget 1)->newval in
 		if newval!=earslastmove then
 		(
-			Secho "new val ";Iecholn newval;
+			//Secho "new val ";Iecholn newval;
 			set earslastmove=newval;
 			set earslastmovetime=time_ms
 		)
@@ -1792,7 +1741,7 @@ fun earDetectRun=
 		if (ears.(0).dirE)==0 && (ears.(1).dirE)==0 then
 		(
 			set earevent=0x8000+(ears.(0).posE<<8)+(ears.(1).posE);
-			Secho "Acquisition : "; Iecho ears.(0).posE; Secho ", ";Iecholn ears.(1).posE;
+			//Secho "Acquisition : "; Iecho ears.(0).posE; Secho ", ";Iecholn ears.(1).posE;
 			set earsmode=EARSMODE_WAITANDDETECT
 		)
 	);;
@@ -1808,8 +1757,8 @@ fun earResetRun=
 			let t-e.ltimeE -> d in
 			if d>5000 then
 			(
-				Secholn "broken ears :";
-				Iecholn i;
+				//Secholn "broken ears :";
+				//Iecholn i;
 				set e.brokenE=1;
 				set e.posE=0;
 				set e.lvalE=v;
@@ -1890,7 +1839,7 @@ fun earUndetect=
 	if earsmode== EARSMODE_WAITANDDETECT then set earsmode=EARSMODE_WAIT;;
 
 fun earStop=
-	Secholn "earStop";
+	//Secholn "earStop";
 	if earsmode!=EARSMODE_RESET then for i=0;i<2 do earMotorset ears.i 0;
 	0;;
 
@@ -1902,13 +1851,13 @@ fun earGo i p d=
 	let earCheck p->p in
 	if e.brokenE==1 then
 	(
-		Secho "earGo ";Iecho i; Secholn " broken !";
+		//Secho "earGo ";Iecho i; Secholn " broken !";
 		nil
 	)
 	else		
 	if p!=e.targetE then
 	(
-		Secho "earGo ";Iecho i; Secho " to ";Iecho p;Secho " dir ";Iecholn d;
+		//Secho "earGo ";Iecho i; Secho " to ";Iecho p;Secho " dir ";Iecholn d;
 		set e.targetE=p;
 		earMotorset e if p==e.posE then 0 else if d then -1 else 1
 	);
@@ -2381,6 +2330,7 @@ var rsctmp;;	// buffer de chargement des ressources en petits morceaux
 
 proto _pingcbhttp 2;;
 proto _pingcbhttp2 2;;
+proto setledcolor 2;;
 
 var BROADCAST_KEYWORD="broadcast";;
 var SIGNCUTSIZE=40000;; // taille max du fichier audio de signature
@@ -3095,7 +3045,6 @@ fun buttoncheckevent=
 	if buttonevent!=nil then loop;
 	0;;
 
-//var netMac="00904B8C540D";;
 fun _webmac key i=
 	if i<strlen key then (ctoh strget key i)::_webmac key i+1;;
 
@@ -3145,7 +3094,7 @@ fun dumpconfig l=
 	l;;
 
 fun _configcbhttp http res=
-	Secholn ">>>> _configcbhttp";
+	//Secholn ">>>> _configcbhttp";
 	let filterconfig Secholn httpgetcontent res 0-> conf in
 	(
 		set pingsrv=listswitchstr conf "ping";
@@ -3162,7 +3111,7 @@ fun runconfigwait http=
 	// check timeout and retry
 	if (httpinactive http)>10000 then
 	(
-		Secholn "##timeout on configwait";
+		//Secholn "##timeout on configwait";
 		httpabort http;
 		set run=configstartRun
 	);
@@ -3174,15 +3123,15 @@ fun bintoi3 s x=((strget s x)<<16)+((strget s x+1)<<8)+(strget s x+2);;
 
 
 fun pingextract_ s i res=
-  Secho ">>>> pingextract_ s = ";Secholn s;
-  Secho ">> i = ";Iecholn i;
-  Secho ">> s length = ";Iecholn strlen s;
+  //Secho ">>>> pingextract_ s = ";Secholn s;
+  //Secho ">> i = ";Iecholn i;
+  //Secho ">> s length = ";Iecholn strlen s;
   	
   let strget s i-> code in 
   if 1==1 then
   (
-    Secho ">> code = ";Iecholn code;
-    Secho ">>bintoi3 s i+1 len = ";Iecholn bintoi3 s i+1;
+    //Secho ">> code = ";Iecholn code;
+    //Secho ">>bintoi3 s i+1 len = ";Iecholn bintoi3 s i+1;
     0
   );
     
@@ -3195,21 +3144,21 @@ fun pingextract_ s i res=
 		  if len>=0 then pingextract_ s i+4+len [code strsub s i+4 len]::res;;   //should find 255 here to end
 
 fun pingextract s=
-  Secho ">>>> pingextract s = ";Secholn s;
+  //Secho ">>>> pingextract s = ";Secholn s;
 	if (strget s 0)==0x7f then pingextract_ s 1 nil;;
 
 
 
 fun pingextract_2 s i res=  //extract text msg
-  Secho ">>>> pingextract_2 s = ";Secholn s;
-  Secho ">> i = ";Iecholn i;
-  Secho ">> s length = ";Iecholn strlen s;
+  //Secho ">>>> pingextract_2 s = ";Secholn s;
+  ///Secho ">> i = ";Iecholn i;
+  //Secho ">> s length = ";Iecholn strlen s;
   	
   let strget s i-> code in 
   if 1==1 then
   (
-    Secho ">> code = ";Iecholn code;
-    Secho ">>bintoi3 s i+1 len = ";Iecholn bintoi3 s i+1;
+    //Secho ">> code = ";Iecholn code;
+    //Secho ">>bintoi3 s i+1 len = ";Iecholn bintoi3 s i+1;
     0
   );
     
@@ -3227,13 +3176,13 @@ fun pingextract_2 s i res=  //extract text msg
     if len>0 then pingextract_ s 1 [code strsub s 1 len]::res;;  
 
 fun pingextract2 s=
-  Secho ">>>> pingextract2 s = ";Secholn s;
+  //Secho ">>>> pingextract2 s = ";Secholn s;
 	pingextract_2 s 1 nil;;
 
 
 
 fun pingextract2 s=
-  Secho ">>>> pingextract 2 s = ";Secholn s;
+  //Secho ">>>> pingextract 2 s = ";Secholn s;
  
   if (strget s 0)==0x7f then 
   (
@@ -3242,7 +3191,7 @@ fun pingextract2 s=
   )
   else     //text format?
   (
-    Secholn ">> text format detected";
+    //Secholn ">> text format detected";
     0
   );;
   
@@ -3252,12 +3201,12 @@ fun srcextract s i=
 
 
 fun rscfilterurl url=
-  Secholn ">>>> rscfilterurl";
+  //Secholn ">>>> rscfilterurl";
 	if 0==strstr url BROADCAST_KEYWORD 0 then strcat broadcasturl strsub url strlen BROADCAST_KEYWORD nil
 	else url;;
 
 fun rscfrommsg l=
-  Secholn ">>>> rsffrommsg"; //l is a list
+  //Secholn ">>>> rsffrommsg"; //l is a list
   
 	if l!=nil then let hd l->[key val] in
 	if (!strcmp key "MU") || (!strcmp key "CH") then [val /*nil*/300000]::rscfrommsg tl l
@@ -3265,11 +3214,11 @@ fun rscfrommsg l=
 	else rscfrommsg tl l;;
 
 fun msgInit msg=
-Secholn "####################msgInit";
+	//Secholn "####################msgInit";
 	let atoi listswitchstr msg "ID" -> id in
 	(
-		Secho "ID=";Secholn itoh id;
-		Secho "CurrentTrame = ";Secholn itoh currenttrame;
+		//Secho "ID=";Secholn itoh id;
+		//Secho "CurrentTrame = ";Secholn itoh currenttrame;
 		if id==MSG_IDLE then
 		(
 			if currenttrame==MSG_IDLE then
@@ -3281,7 +3230,7 @@ Secholn "####################msgInit";
 			else
 			(
 				set currenttrame=id;
-				Secholn "-> idle";
+				//Secholn "-> idle";
 				setleds 0xff00ff;
 				earReset;
 				idlewaitRun
@@ -3290,7 +3239,7 @@ Secholn "####################msgInit";
 		else if id==MSG_ASLEEP then
 		(
 			set currenttrame=id;
-			Secholn "-> asleep";
+			//Secholn "-> asleep";
 			setleds 0xff00ff;
 			earReset;
 			asleepRun
@@ -3306,7 +3255,7 @@ Secholn "####################msgInit";
 	);;
 
 fun _msgloadcbhttp http res size=
-  Secholn ">>>> _msgloadcbhttp";
+  //Secholn ">>>> _msgloadcbhttp";
 	if recording then
 	(
 		httpabort http;
@@ -3314,7 +3263,6 @@ fun _msgloadcbhttp http res size=
 	)
 	else if res!=nil then
 	(
-//		Secholn res;
 		set rsctmp=res::rsctmp;
 		if size!=nil && (slistlen rsctmp)>size then
 		(
@@ -3333,7 +3281,7 @@ fun _msgloadcbhttp http res size=
 	);;
 
 fun msgstart=
-  Secholn ">>>> msgstart!!!";
+  //Secholn ">>>> msgstart!!!";
 	//setleds 0xff0000;
 	//earReset;
 	set palette=tabnew 8 0xff;
@@ -3343,13 +3291,13 @@ fun msgstart=
 
   
 fun runmsgloadstart=
-  Secholn ">>>> runmsgloadstart";
+  //Secholn ">>>> runmsgloadstart";
   
   let hd rsctoget -> [url size] in
 	
 	if url==nil then
 	(
-		Secholn "Ready to run !";
+		//Secholn "Ready to run !";
 		msgstart;
 		0
 	)
@@ -3361,7 +3309,7 @@ fun runmsgloadstart=
 	else
 	(
 		set rsctmp=nil;
-		Secho ">>!!rscfilterurl = ";Secholn rscfilterurl url;
+		//Secho ">>!!rscfilterurl = ";Secholn rscfilterurl url;
 		set run=msgloadwaitRun httprequest "GET" Secholn rscfilterurl url nil fixarg3 #_msgloadcbhttp size HTTP_STREAM;
 		0
 	);;
@@ -3370,7 +3318,7 @@ fun runmsgloadstart=
 fun runmsgloadwait http=
 	if (httpinactive http)>10000 then
 	(
-		Secholn "##timeout on msgload";
+		//Secholn "##timeout on msgload";
 		httpabort http;
 		set run=msgloadstartRun
 	);
@@ -3378,7 +3326,7 @@ fun runmsgloadwait http=
 
 
 fun runmsginitwait=
-    Secholn ">>>> runmsginitwait";
+    //Secholn ">>>> runmsginitwait";
 	// check timeout (oreille bloquée)
 	if earReady then
 	(
@@ -3410,7 +3358,7 @@ fun runpingsendwait http=
 	// check timeout and retry
 	if (httpinactive http)>10000 then
 	(
-		Secholn "##timeout on pingsendwait";
+		//Secholn "##timeout on pingsendwait";
 		httpabort http;
 		_controlsend nil
 	);
@@ -3452,7 +3400,7 @@ fun _controlrecord mode=
 
 fun _cbrecordhttp http res=
 	set recorddata=nil;
-	Secholn res;
+	//Secholn res;
 	setleds 0x00;
 	set run=waitRun time+recorddelay;
 	0;;
@@ -3463,7 +3411,7 @@ fun runrecordwait z=
 	let z->[retry http] in
 	if (httpinactive http)>10000 then
 	(
-		Secholn "##timeout on recordwait";
+		//Secholn "##timeout on recordwait";
 		httpabort http;
 		if retry>0 then
 		set run=recordwaitRun [retry-1 httprequest "POST" Secholn recordurl recordmode recorddata #_cbrecordhttp HTTP_NORMAL]
@@ -3493,9 +3441,9 @@ fun runrecord=
 
 
 fun msgstartchor chor i0=
-  Secho ">>>> msgstartchor time_ms = ";Iecho time_ms;Secho " i0 = ";Iecholn i0;
+  //Secho ">>>> msgstartchor time_ms = ";Iecho time_ms;Secho " i0 = ";Iecholn i0;
 	set chordata=strcatlist chor;
-	Secho "chordata = ";Secholn chordata;
+	//Secho "chordata = ";Secholn chordata;
 	set chorindex=4+1;	// we skip the header and the first waiting
 	set chortimescale=0;
 	set chornexttime=time_ms;
@@ -3503,7 +3451,7 @@ fun msgstartchor chor i0=
 	0;;
 
 fun taichistart =
-	Secholn ">>>> taichistart ";
+	//Secholn ">>>> taichistart ";
 	set chorrandom=3;//((Iecholn rand&255)*6)>>8;
 	set chortaichimotor={rand&1 rand&1};
 	earUndetect;
@@ -3529,24 +3477,24 @@ fun msgendchor i0=
 
 
 fun setpalette p=
-	Secho "############setpalette ";Iecholn p&7;
+	//Secho "############setpalette ";Iecholn p&7;
 	let palettes.(p&7) -> p in
 	for i=0;i<8 do let i*3 -> j in set palette.i=((p.(j))<<16)+((p.(j+1))<<8)+p.(j+2);;
 
 //setcolor (x>>24) x&0xffffff
 fun setcolor i val=
-	Secho "############setcolor ";Iecho i; Secho " = $";Secholn itoh val;
+	//Secho "############setcolor ";Iecho i; Secho " = $";Secholn itoh val;
 	set palette.i=val;;
 
 
 fun runmsgchor i0=
-  Secho ">>>> runmsgchor i:";Iecho chorindex; Secho " t:";Iecholn chornexttime;
+  //Secho ">>>> runmsgchor i:";Iecho chorindex; Secho " t:";Iecholn chornexttime;
 	
 	if chornexttime-time_ms<=0 then
 	(
 	  let strget chordata chorindex -> code in
 	  (
-		  Secho ">> code = "; Iecholn code;
+		  //Secho ">> code = "; Iecholn code;
 		  0
 		);
 		
@@ -3566,7 +3514,7 @@ fun runmsgchor i0=
 		)
 		else if code==CH_set_led_color then
 		(
-			Secholn ">> set_led_color <<<<<<<<<<<<<<<<<<<<<<<<<<<<";
+			//Secholn ">> set_led_color <<<<<<<<<<<<<<<<<<<<<<<<<<<<";
 			led 4-strget chordata chorindex+1 ((strget chordata chorindex+2)<<16)+((strget chordata chorindex+3)<<8)+(strget chordata chorindex+4);
 			6
 		)
@@ -3578,7 +3526,7 @@ fun runmsgchor i0=
 		)
 		else if code==CH_randmidi then
 		(
-			Secholn "randmidi";
+			//Secholn "randmidi";
 			let getmidilist -> t in
 			let tablen t -> n in
 			if n>0 then let t.(Iecholn ((rand&255)*n)>>8) -> music in
@@ -3618,7 +3566,7 @@ fun runmsgchor i0=
 	);;
 
 fun _pingcbstreaming http res lastid=
-	Secholn "streaming ping";
+	//Secholn "streaming ping";
 	if !recording then
 	let nil->msg in
 	(
@@ -3655,11 +3603,11 @@ var chorst_nexttime;;
 fun dochorstream=
 	if chorst_data==nil || ((chorst_index>=strlen chorst_data)&&(chorst_repeat<1)) then
 	(
-		Secho "Start Chor Stream ";
+		//Secho "Start Chor Stream ";
 		set chorst_data=listnth chorstream Iecholn rand&3;
 		set chorst_index=1;
-		Secho "tempo "; Iecholn set chorst_tempo=160+(((rand&255)*90)>>8);
-		Secho "repeat "; Iecholn set chorst_repeat=3+(((rand&255)*18)>>8);
+		//Secho "tempo "; Iecholn set chorst_tempo=160+(((rand&255)*90)>>8);
+		//Secho "repeat "; Iecholn set chorst_repeat=3+(((rand&255)*18)>>8);
 		set chorst_nexttime=time_ms
 	);
 	while (chorst_index<strlen chorst_data) && time_ms-chorst_nexttime > 0 do
@@ -3675,7 +3623,7 @@ fun dochorstream=
 	if (chorst_index>=strlen chorst_data) then
 	(
 		set chorst_index=1;
-		Secho "repeat "; Iecholn set chorst_repeat=chorst_repeat-1;
+		//Secho "repeat "; Iecholn set chorst_repeat=chorst_repeat-1;
 		set chorst_nexttime=time_ms
 	);
 	0;;
@@ -3709,15 +3657,16 @@ fun runmsgchorstreaming z=
 		)
 		else
 		(
-			let (osc ((time_ms*(3))>>8))>>6 -> i0 in
-				motorset 0 if i0==3 then 1 else if i0==1 then (-1) else 0;
-			let (osc ((time_ms*(5))>>8))>>6 -> i0 in
-				motorset 1 if i0==3 then 1 else if i0==1 then (-1) else 0
+			//let (osc ((time_ms*(3))>>8))>>6 -> i0 in
+			//	motorset 0 if i0==3 then 1 else if i0==1 then (-1) else 0;
+			//let (osc ((time_ms*(5))>>8))>>6 -> i0 in
+			//	motorset 1 if i0==3 then 1 else if i0==1 then (-1) else 0
+			0
 		);
 		if (time-ping0)>STREAMING_PING then
 		(
 			update z with [_ _ time];
-			Secholn "requesting url";
+			//Secholn "requesting url";
 			httprequest "GET" Secholn pingurl nil fixarg3 #_pingcbstreaming currenttrame HTTP_NORMAL
 			
 		);
@@ -3757,7 +3706,7 @@ fun runText u0=
   
   let listnth texttoplay u0 -> [key val] in
   (
-    Secho ">> key = ";Secho key;Secho " val = ";Secholn val;
+    //Secho ">> key = ";Secho key;Secho " val = ";Secholn val;
     0
   );
   
@@ -3766,13 +3715,13 @@ fun runText u0=
   
   if time_ms > delay then  //previous delay command?
   (
-    Secholn ">> time_ms > delay";
+    //Secholn ">> time_ms > delay";
     let listnth texttoplay u0 -> [key val] in
   	
   	if (Secholn key)==nil then
   	(
-  		Secholn ">> End of Text Messages";
-  		Secho ">> pingdelay = ";Iecholn pingdelay;
+  		//Secholn ">> End of Text Messages";
+  		//Secho ">> pingdelay = ";Iecholn pingdelay;
   		//_controlsend 2; //this will send request back to server to acknowledged
   		earDetect;
   		set run=waitRun time+pingdelay;
@@ -3782,7 +3731,7 @@ fun runText u0=
   	/*
   	else if (strget key 0) == 48 then //backslash
     (
-      Secholn "$ message received";
+      //Secholn "$ message received";
       //let Iecholn key -> val in
       //set key = dump taichi;
       set val = atoi key;
@@ -3797,8 +3746,8 @@ fun runText u0=
 			let tablen t -> n in
 			if n>0 then let t.(Iecholn ((rand&255)*n)>>8) -> music in
 			(
-			  Secho ">> t = ";Secholn t.3;
-			  Secho ">> Midi = "; Secholn music;
+			  //Secho ">> t = ";Secholn t.3;
+			  //Secho ">> Midi = "; Secholn music;
 			  wavstartlocal music::nil;
 			  0
 			);
@@ -3897,7 +3846,7 @@ fun runText u0=
   	)
   	else if (!strcmp key "BOTTOMCOLOR") then
   	(
-  	  Secho ">>BOTTOMCOLOR ";Secholn val;
+  	  //Secho ">>BOTTOMCOLOR ";Secholn val;
 
       set BOTTOMCOLOR=BOTTOMVIOLET; //default
   	  
@@ -3916,7 +3865,7 @@ fun runText u0=
   	(
   	  if wavrunning==0 then
   	  (
-    	Secho ">>PLAY ";Secholn val;
+    	//Secho ">>PLAY ";Secholn val;
     		
     	setleds 0;
     	set msgtimestart=time;
@@ -3926,7 +3875,7 @@ fun runText u0=
     	set url=strcatlist pingsrv::"/vl/"::val::nil; 
         set wav_url = url;
         
-        Secho ">>url1 = ";Secholn url;
+        //Secho ">>url1 = ";Secholn url;
         //set currenttrame=MSG_IDLE;
         
         httpabort wav_http;  
@@ -3936,7 +3885,7 @@ fun runText u0=
         wavstarthttp url;
         
     	set run=textRun u0+1;
-    	Secholn "########################## done";
+    	//Secholn "########################## done";
     	0
   		)
   		
@@ -3945,7 +3894,7 @@ fun runText u0=
   	(
   	  if wavrunning==0 then
   	  (
-    	Secho ">>PLAY2 ";Secholn val;
+    	//Secho ">>PLAY2 ";Secholn val;
     		
     	setleds 0;
     	set msgtimestart=time;
@@ -3954,7 +3903,7 @@ fun runText u0=
 		    
         set url = val;
         
-        Secho ">>url1 = ";Secholn url;
+        //Secho ">>url1 = ";Secholn url;
         
         httpabort wav_http;  
  		set wav_http=nil;    
@@ -3965,7 +3914,7 @@ fun runText u0=
         //let rscfilterurl val -> music in wavstarthttp music;
 		
     	set run=textRun u0+1;
-    	Secholn "########################## done";
+    	//Secholn "########################## done";
     	0
   		)
   		
@@ -3974,32 +3923,30 @@ fun runText u0=
   	(
   	  if wavrunning==0 then
   	  (
-        Secho ">>url = ";Secholn val;
+        //Secho ">>url = ";Secholn val;
       
 		setleds 0;
     	set msgtimestart=time;
       	led 0 0xff00ff;
     	set chorst_data=nil;
 		    
-    	set url=val; //strcatlist pingsrv::"/vl/"::val::nil; 
-        Secho ">>url = ";Secholn url;
-        
+    	set url=val;  
+        //Secho ">>url = ";Secholn url;
+
         set chorst_data=nil;
         let rscfilterurl val -> music in wavstarthttp music;
 		set run=msgchorstreamRun [u0 time time];
 		
         //wavstarthttp url;
     	//set run=textRun u0+1;
-    	Secholn "########################## done";
+    	//Secholn "########################## done";
     	
   		0
-  		    
-		
   		)
     )
     else if (!strcmp key "DOTAICHI") then
     (
-      Secholn ">>Doing taichi"; 
+      //Secholn ">>Doing taichi"; 
       set currenttrame=MSG_IDLE;
       taichistart;  
       //set run=textRun t0;  //msgendchor sets this msg upon completion
@@ -4007,52 +3954,41 @@ fun runText u0=
     )
     else if (!strcmp key "IDLE") then
     ( 
-      Secholn ">>IDLE"; 
+      //Secholn ">>IDLE"; 
       set currenttrame=MSG_IDLE;
       set run=textRun u0+1;
       0
     )
     else if(!strcmp key "LED1") then
     (
-      if(!strcmp val "AMBER")  then led 1 AMBER;
-      if(!strcmp val "VIOLET") then led 1 VIOLET;
-      if(!strcmp val "RED")    then led 1 RED;
-      if(!strcmp val "GREEN")  then led 1 GREEN;
-      if(!strcmp val "TEAL")   then led 1 TEAL;
-      if(!strcmp val "YELLOW") then led 1 YELLOW;
+      setledcolor 1 val;
       set run=textRun u0+1;
       0
     )
     else if(!strcmp key "LED2") then
     (
-      if(!strcmp val "AMBER")  then led 2 AMBER;
-      if(!strcmp val "VIOLET") then led 2 VIOLET;
-      if(!strcmp val "RED")    then led 2 RED;
-      if(!strcmp val "GREEN")  then led 2 GREEN;
-      if(!strcmp val "TEAL")   then led 2 TEAL;
-      if(!strcmp val "YELLOW") then led 2 YELLOW;
+      setledcolor 2 val;
       set run=textRun u0+1;
       0
     )
     else if(!strcmp key "LED3") then
     (
-      if(!strcmp val "AMBER")  then led 3 AMBER;
-      if(!strcmp val "VIOLET") then led 3 VIOLET;
-      if(!strcmp val "RED")    then led 3 RED;
-      if(!strcmp val "GREEN")  then led 3 GREEN;
-      if(!strcmp val "TEAL")   then led 3 TEAL;
-      if(!strcmp val "YELLOW") then led 3 YELLOW;
+      setledcolor 3 val;
       set run=textRun u0+1;
       0
     )
-    else if(!strcmp key "NETTIME") then
-    (
-      Secho ">> current wav_net timeout is "; Iecholn WAV_NET_TIMEOUT;
-      set WAV_NET_TIMEOUT = atoi val;
-      Secho ">> wav_net_timeout set to "; Secholn val;
-      set run=textRun u0+1;
-      0
-    )
+    else if(!strcmp key "LED4") then
+	(
+	  setledcolor 4 val;
+	  set run=textRun u0+1;
+	  0
+	)
+	else if(!strcmp key "LED0") then
+	(
+	  setledcolor 0 val;
+	  set run=textRun u0+1;
+	  0
+	)
     else if(!strcmp key "LEDOFF") then
     (
       led 1 0;
@@ -4065,8 +4001,8 @@ fun runText u0=
     (
       set delay = time_ms + (atoi val);  //delay is millisecond
       
-      Secho ">> time_ms = ";Iecholn time_ms;
-      Secho ">> delay ";Iecholn delay;
+      //Secho ">> time_ms = ";Iecholn time_ms;
+      //Secho ">> delay ";Iecholn delay;
       set run=textRun u0+1;
       0
     )
@@ -4075,34 +4011,10 @@ fun runText u0=
       if wavrunning==0 then set run=textRun u0+1;
       0
     )
-    else if(!strcmp key "CHEERLIGHTS") then
-    (
-      if(!strcmp val "RED")  then (set cheer=RED; set BOTTOMCOLOR=BOTTOMRED);
-      if(!strcmp val "GREEN") then (set cheer=GREEN;set BOTTOMCOLOR=BOTTOMGREEN);
-      if(!strcmp val "BLUE")    then (set cheer=BLUE;set BOTTOMCOLOR=BOTTOMBLUE);
-      if(!strcmp val "CYAN")  then (set cheer=CYAN;set BOTTOMCOLOR=BOTTOMTEAL);
-      if(!strcmp val "WHITE")   then (set cheer=WHITE;set BOTTOMCOLOR=BOTTOMWHITE);
-      if(!strcmp val "WARMWHITE") then (set cheer=WARMWHITE;set BOTTOMCOLOR=BOTTOMWHITE);
-      if(!strcmp val "PURPLE")  then (set cheer=PURPLE;set BOTTOMCOLOR=BOTTOMVIOLET);
-      if(!strcmp val "MAGENTA")  then (set cheer=MAGENTA;set BOTTOMCOLOR=BOTTOMVIOLET);
-      if(!strcmp val "YELLOW")  then (set cheer=YELLOW;set BOTTOMCOLOR=BOTTOMYELLOW);
-      if(!strcmp val "ORANGE")  then (set cheer=ORANGE;set BOTTOMCOLOR=BOTTOMORANGE);
-     
-      led 1 cheer;
-      led 2 cheer;
-      led 3 cheer;
-      led 0 cheer;
-      
-      //setleds cheer;
-      //set BOTTOMCOLOR=cheer;  //screws up led
-      //bottomled;
-      set run=textRun u0+1;
-      0
-    )
     else  //invalid key
     (
-      Secholn ">> Invalid key";
-  		Secho ">> pingdelay = ";Iecholn pingdelay;
+      //Secholn ">> Invalid key";
+  		//Secho ">> pingdelay = ";Iecholn pingdelay;
   		earDetect;
   		set run=waitRun time+pingdelay;
   		set moreText=0;
@@ -4111,12 +4023,12 @@ fun runText u0=
   );;
   
 fun runmsg i0=
-  Secho ">>>> runmsg #";Iecholn i0;
-  Secho ">> time_ms = ";Iecholn time_ms;
+  //Secho ">>>> runmsg #";Iecholn i0;
+  //Secho ">> time_ms = ";Iecholn time_ms;
 
   let listnth msgtoplay i0 -> [key val] in
   (
-    Secho ">> key = ";Secho key;Secho " val = ";Secholn val;
+    //Secho ">> key = ";Secho key;Secho " val = ";Secholn val;
     0
   );
   
@@ -4128,7 +4040,7 @@ fun runmsg i0=
 	)
 	else if (!strcmp key "MU") || (!strcmp key "MC") then
 	(
-		Secholn "###########Start music";
+		//Secholn "###########Start music";
 		let listswitchstr rscloaded Secholn val -> music in
 			if music==nil then Secholn "###nilmusic";
 		wavstartlocal listswitchstr rscloaded val;
@@ -4137,7 +4049,7 @@ fun runmsg i0=
 	)
 	else if !strcmp key "ST" then
 	(
-		Secholn "###########Start streaming music";
+		//Secholn "###########Start streaming music";
 		//IPecho netdns 0 1;
 		//startdnsclient;
 		set chorst_data=nil;
@@ -4152,8 +4064,8 @@ fun runmsg i0=
 	)
 	else if !strcmp key "CH" then
 	(
-	    Secholn ">> Found a CH key!! <<<<<<<<<<<<<<<<<<<<<<<<<<";
-	    Secho   ">> val = ";Secholn val;
+	    //Secholn ">> Found a CH key!! <<<<<<<<<<<<<<<<<<<<<<<<<<";
+	    //Secho   ">> val = ";Secholn val;
 	    msgstartchor listswitchstr rscloaded val i0;
 		//msgstartchor ledtry::nil nil;
 		0
@@ -4163,7 +4075,7 @@ fun runmsg i0=
 		if !strcmp key "PL" then setpalette atoi val;
 		if !strcmp key "CL" then
 		(
-		    Secholn ">> Found a CL key!! <<<<<<<<<<<<<<<<<<<<<<<<<<<";
+		    //Secholn ">> Found a CL key!! <<<<<<<<<<<<<<<<<<<<<<<<<<<";
 			let atoi val -> x in setcolor (x>>24) x&0xffffff;
 	        0
 		);
@@ -4172,10 +4084,29 @@ fun runmsg i0=
 	);;
 
 
+fun setledcolor lednbr val = 
+	if(!strcmp val "AMBER") then led lednbr AMBER;
+	if(!strcmp val "BLUE") then led lednbr BLUE;
+	if(!strcmp val "CYAN") then led lednbr CYAN;
+	if(!strcmp val "GREEN") then led lednbr GREEN;
+	if(!strcmp val "MAGENTA") then led lednbr MAGENTA;
+	if(!strcmp val "OLDLACE") then led lednbr OLDLACE;
+	if(!strcmp val "ORANGE") then led lednbr ORANGE;
+	if(!strcmp val "PINK") then led lednbr PINK;
+	if(!strcmp val "PURPLE") then led lednbr PURPLE;
+	if(!strcmp val "RED") then led lednbr RED;
+	if(!strcmp val "TEAL") then led lednbr TEAL;
+	if(!strcmp val "VIOLET") then led lednbr VIOLET;
+	if(!strcmp val "WARMWHITE") then led lednbr WARMWHITE;
+	if(!strcmp val "WHITE") then led lednbr WHITE;
+	if(!strcmp val "YELLOW") then led lednbr YELLOW;
+	if(!strcmp val "OFF") then led lednbr OFF;
+	0;;
+
 var nexttaichi;;
 
 fun dotaichinow=
-	Secho "checktaichi ";
+	//Secho "checktaichi ";
 	let Iecholn infoGet TYPE_taichi -> v in
 	if v then
 		let if nexttaichi!=nil then time-nexttaichi>0 else 0 -> now in
@@ -4203,24 +4134,22 @@ var delay_wav;;
 //we process messages here in the callback if they are the custom text format
 //---------------------------------------------------------------------------
 fun _pingcbhttp2 http res=   //res is the whole msg received from website
-	Secholn ">>>> _pingcbhttp2";
+	//Secholn ">>>> _pingcbhttp2";
 	set senddata=0; //reset button press event upon receiving msg from rabbit  
-	if !recording then Secholn ">>We are not recording";
-	
 	set web = httpgetcontent res;
   
-  Secho ">> web = ";Secholn web;
-  Secho "web 0 = ";Iecholn (strget web 0);
+  	//Secho ">> web = ";Secholn web;
+  	//Secho "web 0 = ";Iecholn (strget web 0);
   
   if (strget web 0) == 0x7f then
-	(
-	  Secholn ">> Code format detected";
-    _pingcbhttp http res;  //call original
-    0
+  (
+    //Secholn ">> Code format detected";
+   	_pingcbhttp http res;  //call original
+   	0
   )
   else
   (
-    Secholn ">> Text format detected";
+    //Secholn ">> Text format detected";
     set ans = filterconfig web 0;
     set currenttrame=MSG_IDLE;
     set texttoplay=dumpconfig filterconfig web 0;
@@ -4231,7 +4160,7 @@ fun _pingcbhttp2 http res=   //res is the whole msg received from website
  
 	  
 fun _pingcbhttp http res=   //res is the whole msg received from website
-	Secholn ">>>> _pingcbhttp";
+	//Secholn ">>>> _pingcbhttp";
 	
 	let nil->msg in
 	(
@@ -4280,7 +4209,7 @@ fun _pingcbhttp http res=   //res is the whole msg received from website
 		(
 			if currenttrame==MSG_IDLE then
 			(
-			  Secholn "Received MSG_IDLE";
+			  	//Secholn "Received MSG_IDLE";
 				earGo 0 extleft 0;
 				earGo 1 extright 0;
 				if dotaichinow then (taichistart;nil)
@@ -4295,7 +4224,7 @@ fun _pingcbhttp http res=   //res is the whole msg received from website
 	0;;
 
 fun runpingstart=
-  Secholn ">>>> runpingstart <<<<<<<<<<<<<<<<<<<<<<<<< "; //breaks bunny below
+  	//Secholn ">>>> runpingstart <<<<<<<<<<<<<<<<<<<<<<<<< "; //breaks bunny below
  	if netState==RT2501_S_CONNECTED then set run=pingwaitRun httprequest "GET" Secholn pingurl nil #_pingcbhttp2 HTTP_NORMAL;
 	0;;
  
@@ -4304,7 +4233,7 @@ fun runpingwait http=
 	// check timeout and retry
 	if (httpinactive http)>10000 then  //was 10000
 	(
-		Secholn "##timeout on pingwait";
+		//Secholn "##timeout on pingwait";
 		httpabort http;
 		set run=waitRun time+pingdelay
 	);
@@ -4319,7 +4248,7 @@ fun runwait t=
 
 
 fun runidlewait=
-  Secholn ">>>> runidlewait";
+  //Secholn ">>>> runidlewait";
 	// check timeout (oreille bloquée)
 	if earReady then
 	(
@@ -4354,7 +4283,7 @@ fun controlplay=
 	let buttongetevent -> ev in
 	if ev!=nil then
 	(
-		Secholn "*****************controlplay";
+		//Secholn "*****************controlplay";
 		wavstop;
 		earStop;
 		if ev==BUTTON_CLIC then	(controlsound midi_abort;_controlsend 5) //pause
@@ -4370,7 +4299,7 @@ fun controlwait=
 	let if ev==nil then eargetevent else ev -> ev in
 	if ev!=nil then
 	(
-		Secholn ">>>>>>>>>>>>>>>>>>>controlwait";
+		//Secholn ">>>>>>>>>>>>>>>>>>>controlwait";
 		wavstop;
 		earStop;
 		if ev==BUTTON_CLIC then	_controlsend 3 //relire button click event sent in sd variable
@@ -4394,11 +4323,15 @@ fun loop=
 	match wifi with
 	(initW -> nil)
 	|(_ ->
-		Secholn "######### wifi lost";
+		//Secholn "######### wifi lost";
 		set wifi=reconnectW;
 		0
 	);
 
+	controlplay; //cck
+
+	if tcpBusy==0 then //cck
+	(
 	buttonloop;
 //	buttongetevent;
 	let match run with
@@ -4427,10 +4360,12 @@ fun loop=
 	else if keymanager==CONTROL_PLAY then controlplay
 	else buttongetevent;
 
-    wavtime;  //cck commented out
-
+    wavtime;  
 	updatevol;
+	0
+	);
 	0;;
+	
 
 fun main=
 	MACecho netMac 0 1;

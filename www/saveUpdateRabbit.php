@@ -73,6 +73,7 @@ $rss2          = $_REQUEST['txtRSS2'];
 $rss3          = $_REQUEST['txtRSS3'];
 $tts           = $_REQUEST['txtTTS'];
 $follow        = $_REQUEST['txtFollow'];
+$stream        = $_REQUEST['txtStream'];
 
 if(isset($_REQUEST['chkClock']))
     $clockType     = $_REQUEST['chkClock'];
@@ -226,9 +227,9 @@ if (isset($_POST['btnRestart']))
     if(intval($min) > 59)
         $min = 0;
     
-  $cmd = "call sp_PurgeQueue('$serialNbr',@msg)";
+    $cmd = "call sp_PurgeQueue('$serialNbr',@msg)";
   
-  $result = queryWithRetry($con,$cmd,$name,"SaveUpdateRabbit queue purge.");
+    $result = queryWithRetry($con,$cmd,$name,"SaveUpdateRabbit queue purge.");
         
     if (!$result) 
     {
@@ -248,8 +249,8 @@ if (isset($_POST['btnRestart']))
     
     //for V2
     $file='restart.msg'; 
-  $msg = file_get_contents($file);
-  queue($serialNbr,$min,$msg,$con,$language,false);
+    $msg = file_get_contents($file);
+    queue($serialNbr,$min,$msg,$con,$language,false);
     
     mysqli_close($con);
     return;
@@ -271,15 +272,47 @@ if (isset($_POST['btnSpeak']))
     return;    
 }
 
-if (isset($_POST['btnTestWav']))
+if (isset($_POST['btnStream']))
 {
+    $len = strlen($stream);
+    
+    if($len < 1 ){
+        echo "Please provide a streaming link. $back";
+        return;
+    }
+
+    $url = $stream;
+
+    //if .m3u, get the containing url
+    if(strstr($stream,'.m3u')){
+        // create a new cURL resource
+        $ch = curl_init();
+
+        // set URL and other appropriate options
+        curl_setopt($ch, CURLOPT_URL, $stream);
+        curl_setopt($ch, CURLOPT_HEADER, 0);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+
+        // grab URL
+        $url = curl_exec($ch);
+        $url = trim($url);
+        
+        // close cURL resource, and free up system resources
+        curl_close($ch);
+    }
+
     $min  = date("i"); //minute 00-59
     $sec  = date("s"); //secs 00-59
     
-    if(intval($sec) > 5) $min = $min +1;  //already has something scheduled?  
-    if(intval($min) > 59) $min = 0;
+    if(intval($sec) > 5)
+        $min = $min +1;  
     
-    queue($serialNbr,$min,"NETTIME $wavTimeout\nPLAY bbc.mp3",$con,$language,false);
+    if(intval($min) > 59)
+        $min = 0;
+    
+    echo "Found $url.  To end streaming, click your rabbit's button. ";
+ 
+    queue($serialNbr,$min,"STREAM $url\nFINISH",$con,$language,false);
     mysqli_close($con);
     return;    
 }
@@ -391,12 +424,12 @@ function queue($serNbr,$min,$msg,$con,$language,$tts)
 
     $hutch = "./hutch/$serNbr";
   
-  if($tts == true)
-  {
-        doTTS($msg,$lang,$serNbr);
+    if($tts == true)
+    {
+        doTTS2($msg,$lang,$serNbr);
         $msg="PLAY $hutch/rss.mp3";
-  }
-  
+    }
+
     $cmd = "call sp_Queue('" . $serNbr . "'
                                              ,'" . $min . "'
                                              ,'" . $msg . "'

@@ -30,12 +30,13 @@ along with NabaztagLives.  If not, see <http://www.gnu.org/licenses/>.
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 ini_set('log_errors', 1);
-ini_set('error_log','../../etc/nabaztag_error.log');
+ini_set('error_log','/var/etc/nabaztag_error.log');
 //error_reporting(0);  //don't use this, use ini_set or nothing goes to the log
 
 include '../subroutines/clean.php';
 include '../subroutines/getLanguage.php';
 include '../subroutines/goCurl.php';
+include '../subroutines/doTTS.php';
 include '../subroutines/writeToFile.php';
 include '../subroutines/getRSSFeed.php';
 include '../subroutines/queryWithRetry.php';
@@ -44,10 +45,12 @@ include '../subroutines/getFollow.php';
 $msg_idle = '7fffffff';
 $url = $_SERVER["REQUEST_URI"];
 
-if(isset($_GET['sd'])) 
+if(isset($_GET['sd'])) {
     $sd = $_GET['sd'];  //for button press event
-else
+}
+else{
     $sd = 0;
+}
     
 $sn = $_GET['sn']; //serial #
 
@@ -73,7 +76,7 @@ $sec  = date("s"); //secs 00-59
 $hutch = "./hutch/$sn";
 if(! is_dir($hutch)) mkdir($hutch);
 
-include '../../etc/nabaztag_db.php';
+include '/var/etc/nabaztag_db.php';
 
 ini_set('log_errors', 0);  //localhost error
 $con = mysqli_connect($host,$user,$pass,$db);
@@ -199,49 +202,10 @@ switch($language)
 
 if($sn == '000000000000')  //for testing
 {
-    //doWeather($weatherCode,$sn,$degrees,$rabbitID,$broad,$lang,$min,$hour,false,$con);  //false=echo
+    //doWeather($weatherCode,$sn,$degrees,$rabbitID,$broad,$lang,$min,$hour,false,$con);  
     //doFollow($follow,$rabbitID,$lang,$min,$hour,$queue,$con,$hutch);
-        
-    //out2("PLAY ./arcade/26.mp3\nFINISH\nPLAY ./arcade/26.mp3\nFINISH\nPLAY ./arcade/26.mp3\nFINISH\n");
-    //$ans = shell_exec('./lame');
-    //logError($ans);
-    
-    /*
-    //$file='try2.msg'; //try5.msg'; 
-    //$msg = file_get_contents($file);
-    //echo $msg;
-    //out2('STREAM rush.mp3',1,$con);
-    */
-    
     //doRSSFeed('http://feeds.bbci.co.uk/news/world/rss.xml?edition=uk',$sn,$rabbitID,$lang,$min,$hour,false,$hutch);
     //doRSSFeed('http://www.engadget.com/rss.xml',$sn,$rabbitID,$lang,$min,$hour,false);
-    
-    //out('STREAM 188.40.41.39/stream/webstream-promo.mp3',12);
-    //out('STREAM http://212.125.100.52:8000/radiofantasy.mp3',12);
-    //out('STREAM http://downloads.bbc.co.uk/podcasts/worldservice/globalnews/globalnews_20110831-1634a.mp3',1);
-    //out('CHORSTREAM',$rabbitID);
-    //out('BOTTOMCOLOR GREEN');
-    //out2('NETTIME 10000',1,$con);
-    //out2("PLAY bbc.mp3",1,$con);
-    //out("PLAY $file\nNETTIME $wavTimeout",$rabbitID,$min,$con);
-    //out2('PLAY rush.mp3',1,$con);
-    //out2('PLAY warp.wav',1,$con); //works
-    //doFollow("from:vloxy",$rabbitID,$lang,$min,$hour,$queue,$con,$hutch);
-    //out2('PLAY bbc.mp3',1,$con);
-    //tellTime($hour,$sec,$rabbitID,$sn,$broad,$lang,$min,$con,$wavTimeout,$clockType);
-    //out2('NETTIME 5000',1,$con);
-  
-    //dowJones(1,'broad','uk',$min,$sn,false,$con);
- 
-    //$msg = '\$00\$00\$0f\$6f\$00';  //skip 1st five header and waiting 
-    //$msg = $msg . '\$01\$0A\$00\$00\$08\$01\$04\$01\$07\$04\$00\$33\$ff';
-    //echo $taichi;
-
-    /*
-    $file='restart.msg'; //'try2.msg';
-    $msg = file_get_contents($file);
-    echo $msg;
-    */
     //return;
 }
 
@@ -377,6 +341,14 @@ if($hour == $wakeHour && $min == '00')
 /********************************************************
  * check for button press
  ********************************************************/
+if($sd == 1) /* double click */ 
+{
+    $file='restart.msg'; 
+    $msg = file_get_contents($file);
+  
+    out2($msg,$rabbitID,$con);
+    return;
+}
 
 if($sd == 3)
 {
@@ -683,6 +655,7 @@ function doRSSFeed($url,$rabbitID,$lang,$min,$hour,$queue,$con,$hutch)
     if(strlen($t[0]) < 1) 
         return; //invalid RSS feed
     
+    /*
     for($i=0; $i < $max; $i++)
     {
         //send to google TTS
@@ -694,7 +667,16 @@ function doRSSFeed($url,$rabbitID,$lang,$min,$hour,$queue,$con,$hutch)
         
         writeToFile($file,$response);
     }
+    */
     
+    //send to Acapella 
+    for($i=0; $i < $max; $i++)
+    {
+        $response = doTTS2($t[$i],$lang,$rabbitID);
+        $file="$hutch/rss$i.mp3";
+        writeToFile($file,$response);
+    }
+
     //combine to one mp3
     /*
     $fca = array();
@@ -928,11 +910,8 @@ function dowJones($rabbitID,$broad,$lang,$min,$sn,$queue,$con)
     $day = date("D",time());
     if(stristr($day,'sat') || stristr($day,'sun')) return;
     
-    //$request='http://download.finance.yahoo.com/d/quotes.csv?s=indu&f=l1'; //doesn't work anymore due to contract
-    //$response = file_get_contents($request);  //disabled per policy
-    
-    $request='http://finance.yahoo.com/q?s=indu&ql=11';
-
+    $request='http://finance.yahoo.com/quote/%5EDJI?p=%5EDJI';
+   
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_HEADER, 0);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1); //Set curl to return the data instead of printing it to the browser.
@@ -940,27 +919,30 @@ function dowJones($rabbitID,$broad,$lang,$min,$sn,$queue,$con)
     $response = curl_exec($ch);
     
     if($response == "") $response = curl_exec($ch); //try again
-    
     curl_close($ch);
  
     if(strlen($response) < 1) return;  //no response from service
-     
-    //<span id="yfs_l10_^dji">11,043.86</span> //this is what it looks like.  Dow 11k?
-     
-    $search = '<span id="yfs_l10_^dji">';
-     
-    $pos = stripos($response,$search);
-     
-    if(! $pos) return; //quote not found
-     
-    $dow = substr($response,$pos + strlen($search),9);
-    $dow = str_replace(',','',$dow);
+   
+    //parse json 
+    $search = 'root.App.main = ';
+    $pos = stripos($response, $search);
+    if(! $pos) return; 
+    $pos += strlen($search);
+
+    $search = '}(this));';
+    $end = stripos($response, $search, $pos);
+    if(! $end) return; 
+
+    $json = substr($response, $pos, $end - $pos -2);
+    $ans = json_decode($json);
+ 
+    $dow = $ans->context->dispatcher->stores->{'QuoteDataStore-Immutable'}->quoteData->{'^DJI'}->regularMarketPrice->raw; 
     $dow = round(intval($dow));
      
     $fca = array();
     $fca[] = "bell.mp3";  
         
-     //get each # and announce
+    //get each # and announce
     for($i=0; $i < strlen($dow); $i++)
     {
         $nbr = substr($dow,$i,1);
@@ -1027,24 +1009,13 @@ function doCurrentWeather($weatherCode,$sn,$degrees,$rabbitID,$broad,$lang,$min,
         $fca[] = "./$broad/config/weather/$lang/degree.mp3";
     }
   
-    //$fca[] = "./$broad/config/weather/$lang/good.mp3";
-    
     //check for folder in hutch
     
     $hutch = "./hutch/$sn";
     $file="$hutch/weather.mp3";
     
     if(file_exists($file)) unlink($file);
-
-    /*
-    $fh = fopen($file, 'w') or die("can't open file");
-    
-    for($i=0; $i < count($fca); $i++)
-         fwrite($fh,file_get_contents($fca[$i]));
-
-    fclose($fh);
-    */
-    
+   
     $infiles = '';
         
     for($i=0; $i < count($fca); $i++)
@@ -1067,18 +1038,17 @@ function doCurrentWeather($weatherCode,$sn,$degrees,$rabbitID,$broad,$lang,$min,
  ********************************************************/
 function doWeather($weatherCode,$sn,$degrees,$rabbitID,$broad,$lang,$min,$hour,$queue,$con)
 {
-    
-  list ($text,$high,$temp) = getForecast($weatherCode,$degrees,$hour);
+    list ($text,$high,$temp) = getForecast($weatherCode,$degrees,$hour);
     if($high == '') $high='0';
     if($temp == '') $temp='0';
         
     $fca = array();
     $fca[] = "./$broad/config/weather/$lang/signature.mp3";
     
-    if(intval($hour) < 18)
-        $fca[] = "./$broad/config/weather/$lang/today.mp3";
-    else
+    if(intval($hour) > 15)
         $fca[] = "./$broad/config/weather/$lang/tomorrow.mp3";
+    else
+        $fca[] = "./$broad/config/weather/$lang/today.mp3";
     
     if(stristr($text,'t-storm'))
         $fca[] = "./$broad/config/weather/$lang/sky/5.mp3"; 
@@ -1097,6 +1067,8 @@ function doWeather($weatherCode,$sn,$degrees,$rabbitID,$broad,$lang,$min,$hour,$
     elseif(stristr($text,'cold'))
         $fca[] = "./$broad/config/weather/$lang/sky/0.mp3"; 
     elseif(stristr($text,'windy'))
+        $fca[] = "./$broad/config/weather/$lang/sky/0.mp3"; 
+    elseif(stristr($text,'breezy'))
         $fca[] = "./$broad/config/weather/$lang/sky/0.mp3"; 
     elseif(stristr($text,'blustery'))
         $fca[] = "./$broad/config/weather/$lang/sky/0.mp3"; 
@@ -1198,17 +1170,6 @@ function doWeather($weatherCode,$sn,$degrees,$rabbitID,$broad,$lang,$min,$hour,$
     
     if(file_exists($file)) unlink($file);
 
-    /*
-    $fh = fopen($file, 'w') or die("can't open file");
-    
-    for($i=0; $i < count($fca); $i++)
-    {
-        fwrite($fh,file_get_contents($fca[$i]));
-    }
-
-    fclose($fh);
-    */
-    
     $infiles = '';
         
     for($i=0; $i < count($fca); $i++)
@@ -1237,98 +1198,65 @@ function doWeather($weatherCode,$sn,$degrees,$rabbitID,$broad,$lang,$min,$hour,$
 
 }
 
+/************************************************************
+ * given an HTML response, get a node value based on a search 
+ ************************************************************/
+function getNodeValue($node, $response)
+{
+    $pos = strpos($response, $node);
+
+    if($pos > 0){
+        $beg = strpos($response, '>', $pos+1);
+        $end = strpos($response, '<', $beg+1);
+
+        $value = substr($response, $beg +1, $end - $beg - 1);
+        return $value;
+    }
+
+    return '';
+}
+
 /**********************************************
  * get forecast
  **********************************************/
 function getForecast($code,$degrees,$hour)
 {
     if(! is_numeric($code) ) return; //invalid code
-    
+   
     $degrees = strtolower($degrees);
-    $request = "http://weather.yahooapis.com/forecastrss?w=$code&u=$degrees";
-    
-    //http://weather.yahooapis.com/forecastrss?w=26586223
-    //$response = file_get_contents($request);  //disabled per policy
-    
-    //echo $request;
+    $request = "https://query.yahooapis.com/v1/public/yql?q="
+              . urlencode("select item.condition, item.forecast from weather.forecast where woeid = $code and u = '$degrees' limit 2") 
+              . "&format=json";
+   
     $ch = curl_init();
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
     curl_setopt($ch, CURLOPT_HEADER, 0);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1); //Set curl to return the data instead of printing it to the browser.
     curl_setopt($ch, CURLOPT_URL, $request);
     $response = curl_exec($ch);
-    //curl_close($ch);
- 
-     if(strlen($response) < 1) 
-     {
-         curl_close($ch);
-         return;  //no response from service
-     }
-     
-     if(stristr($response,'Maximum Transaction Time Exceeded'))
-     {
-         //logError("p4.php: Maximum Transaction Time Exceeded. Will retry Yahoo weather.");
-         sleep(1);
-     
-         $response = curl_exec($ch);
-         $info = curl_getinfo($ch);
-     }
-
     curl_close($ch);
-    
-    if(stristr($response,'Maximum Transaction Time Exceeded'))
-    {
-        logError("p4.php: Retry for $request failed with Maximum Transaction Time Exceeded.");
-        return;
-    }
+ 
+    //var_dump(json_decode($response, 1));
 
-    $doc = new DOMDocument();
-    $doc->preserveWhiteSpace=false;
-    
-    set_error_handler('HandleXmlError');
-    
-    try
+    if(strlen($response) < 1) 
     {
-        $doc->loadXml($response);
+        return;  //no response from service
     }
-    catch(Exception $e)
-    {
-        restore_error_handler();
-        
-        logError("Offending request $request responded $response.  Curl total time in secs: " 
-                . $info['total_time'] . ", connect time: " . $info['connect_time']
-                );
-        
-        return;
-    }
-        
-    $nl = $doc->getElementsByTagNameNS('*','forecast');
+   
+    $forecast = json_decode($response);
     
-    if($nl->length > 0)
+    $text =         $forecast->query->results->channel[0]->item->forecast->text;
+    $temp =         $forecast->query->results->channel[0]->item->condition->temp;    
+    $high =         $forecast->query->results->channel[0]->item->forecast->high;
+    $tomorrowText = $forecast->query->results->channel[1]->item->forecast->text;
+    $tomorrowHigh = $forecast->query->results->channel[1]->item->forecast->high;
+    
+    if(strlen($text) > 0)
     {
-        if(intval($hour) < 18)
-            $ix = 0;
+        if(intval($hour) > 15) 
+            return array($tomorrowText,$tomorrowHigh,$temp);
         else
-            $ix = 1;
-        
-        $high = trim($nl->item($ix)->getAttribute('high'));
-        $text = trim($nl->item($ix)->getAttribute('text'));
-    
-        $nl = $doc->getElementsByTagNameNS('*','condition');
-
-        if($nl->length > 0)
-        {
-          $temp = trim($nl->item(0)->getAttribute('temp'));
-        }
-
-        $debug=false;
-        
-        if($debug)
-        {
-            echo "high = $high<br>";
-            echo "text = $text<br>";
-        }
-        
-        return array($text,$high,$temp);
+            return array($text,$high,$temp);
     }
 }
 
@@ -1737,7 +1665,7 @@ function logError($msg)
 {
     $date = date("Y-m-d H:i:s");
     $msg = "[$date] $msg \n";
-    $file='../../etc/nabaztag_error.log';
+    $file='/var/etc/nabaztag_error.log';
     error_log($msg,3,$file);
 }
 

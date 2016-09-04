@@ -121,21 +121,21 @@ if (!$resultLang)
 <tr>
 	<td>Wake Up Time </td>
 	<td><select name="ddlWake">
-	    <? readfile("time_picker.htm"); ?>
+	    <?php readfile("time_picker.htm"); ?>
 	    </select>
 	</td>
 </tr>
 <tr>
 	<td>Bed Time </td>
 	<td><select name="ddlBedTime">
-	    <? readfile("time_picker.htm"); ?>
+	    <?php readfile("time_picker.htm"); ?>
 	    </select>
 	</td>
 </tr>
 <tr>
 	<td>Temperature </td>
 	<td><select name="ddlTemp">
-	    <? readfile("temp_picker.htm"); ?>
+	    <?php readfile("temp_picker.htm"); ?>
 	    </select>
 	</td>
 </tr>
@@ -156,7 +156,7 @@ if (!$resultLang)
 for($i = 1; $i < 11; $i++)
 {  
 	echo '<tr>';
-  echo "<td><input type=checkbox id=enabled$i name=enabled$i>";
+  	echo "<td><input type=checkbox id=enabled$i name=enabled$i>";
 	echo "<td><select name=from$i>"; readfile("time_picker.htm"); echo '</select></td>';
 	echo "<td><select name=to$i>"; readfile("time_picker.htm");  echo'</select></td>';
 	echo "<td><select name=min$i>"; readfile("minute_picker.htm"); echo '</select>	</td>';

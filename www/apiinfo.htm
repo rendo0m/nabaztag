@@ -23,7 +23,7 @@
 		<td>Set the color of all LEDs</td>
 		<td>V1</td>
 		<td>0 thru 255</td>
-		<td>http://nabaztaglives.com/api.php?sn=##:##:##:##:##:##&color=2</td>
+		<td>http://yourIP/api.php?sn=##:##:##:##:##:##&color=2</td>
 		<td>(1)</td>
 	</tr>
 	<tr>
@@ -31,7 +31,7 @@
 		<td>Speak a TTS message</td>
 		<td>V2</td>
 		<td>255 characters</td>
-		<td>http://nabaztaglives.com/api.php?sn=##:##:##:##:##:##&tts=hello</td>
+		<td>http://yourIP/api.php?sn=##:##:##:##:##:##&tts=hello</td>
 		<td>(2)</td>
 	</tr>
 	<tr>
@@ -39,7 +39,7 @@
 		<td>Play an MP3</td>
 		<td>V2</td>
 		<td>240 character URL</td>
-		<td>http://nabaztaglives.com/api.php?sn=##:##:##:##:##:##&play=nabaztaglives.com/avionics.mp3</td>
+		<td>http://yourIP/api.php?sn=##:##:##:##:##:##&play=yourIP/avionics.mp3</td>
 		<td>(3)</td>
 	</tr>
 	<tr>
@@ -47,19 +47,85 @@
 		<td>Stream an MP3</td>
 		<td>V2</td>
 		<td>240 character URL</td>
-		<td>http://nabaztaglives.com/api.php?sn=##:##:##:##:##:##&stream=nabaztaglives.com/avionics.mp3</td>
+		<td>http://yourIP/api.php?sn=##:##:##:##:##:##&stream=http://link/to/stream</td>
 		<td>(3)</td>
 	</tr>
-
+    <tr>
+		<td>earleft</td>
+		<td>Move the left ear</td>
+		<td>V2</td>
+		<td>0 thru 15</td>
+		<td>http://yourIP/api.php?sn=##:##:##:##:##:##&earleft=7</td>
+		<td>(4)</td>
+	</tr>
+    <tr>
+		<td>earright</td>
+		<td>Move the right ear</td>
+		<td>V2</td>
+		<td>0 thru 15</td>
+		<td>http://yourIP/api.php?sn=##:##:##:##:##:##&earright=7</td>
+		<td>(4)</td>
+	</tr>
+    <tr>
+		<td>led1</td>
+		<td>Set color of led 1</td>
+		<td>V2</td>
+		<td>See note 5</td>
+		<td>http://yourIP/api.php?sn=##:##:##:##:##:##&led1=RED</td>
+		<td>(5)</td>
+	</tr>
+    <tr>
+		<td>led2</td>
+		<td>Set color of led 2</td>
+		<td>V2</td>
+		<td>See note 5</td>
+		<td>http://yourIP/api.php?sn=##:##:##:##:##:##&led2=RED</td>
+		<td>(5)</td>
+	</tr>
+    <tr>
+		<td>led3</td>
+		<td>Set color of led 3</td>
+		<td>V2</td>
+		<td>See note 5</td>
+		<td>http://yourIP/api.php?sn=##:##:##:##:##:##&led3=RED</td>
+		<td>(5)</td>
+	</tr>
+    <tr>
+		<td>led4</td>
+		<td>Set color of led 4 (bottom) </td>
+		<td>V2</td>
+		<td>See note 5</td>
+		<td>http://yourIP/api.php?sn=##:##:##:##:##:##&led4=RED</td>
+		<td>(5)</td>
+	</tr>
+	<tr>
+		<td>led0</td>
+		<td>Set color of led 0 (nose) </td>
+		<td>V2</td>
+		<td>See note 5</td>
+		<td>http://yourIP/api.php?sn=##:##:##:##:##:##&led0=RED</td>
+		<td>(5)</td>
+	</tr>
 </table>
 <P>
-
+<h3>Please note - normal programming of the rabbit, e.g. tell the time, may interrupt API calls.</h3>
 </center>
 <div class="freeText">
+<h4>The API request you send is always for the next minute and you can only send one request per minute.  The exact time it executes will vary based on when your rabbit checks the server.
+</h4>
+<P>
 (1) ##:##:##:##:##:## is the serial number of your rabbit
-<br>
+<p>
 (2) This service uses Google TTS
-<br>
-(3) The V2 suffers from buffering issues which makes the sound "crack" or "break up".  You can choose any http based URL you want that returns an MP3 (do not include http://).  The payload is between the URL you choose and your rabbit; it does not come back to this server for any processing.    
+<p>
+(3) Supports 32kbps mp3 m3u streams. The link you provide can either be the url inside the .m3u link or the .m3u link itself.  If you get a blinking nose and no audio, try a different stream.  Streams with high bit rates may not work.  The payload is between the URL you choose and your rabbit; it does not come back to this server for any processing.    
+<p>
+(4) Ears can be stacked and moved at the same time.  For example http://yourIP/api.php?sn=##:##:##:##:##:##&earleft=7&earright=7.  The direction of travel and speed cannot be modified.
+<p>
+(5) Valid colors for V2 are AMBER, BLUE, CYAN, GREEN, MAGENTA, OLDLACE, ORANGE, PINK, PURPLE, RED, TEAL, 
+	VIOLET, WARMWHITE, WHITE, YELLOW, OFF.  You can also stack them e.g.
+	http://yourIP/api.php?sn=##:##:##:##:##:##/led1=RED&led2=GREEN&led3=BLUE&led4=WHITE
+	<br>
+	The nose and the bottom LED are reset during normal operation so these may be difficult to see.
 </div>
 </html>

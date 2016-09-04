@@ -37,13 +37,14 @@ ini_set('error_log','../etc/nabaztag_error.log');
 include './subroutines/clean.php';
 include './subroutines/getLanguage.php';
 include './subroutines/goCurl.php';
+include './subroutines/doTTS.php';
 include './subroutines/writeToFile.php';
 include './subroutines/logError.php';
 include './subroutines/queryWithRetry.php';
 
 $msg_idle = '7fffffff';
 if(isset($_GET['tts'])) $tts = $_GET['tts'];  //text msg
-
+    
 if(!isset($_GET['sn']))
 {
     echo 'No sn';
@@ -56,6 +57,13 @@ if(isset($_GET['rf'])) $rfid = $_GET['rf'];
 if(isset($_GET['color'])) $color= $_GET['color'];
 if(isset($_GET['play'])) $play=$_GET['play'];  //play mp3
 if(isset($_GET['stream'])) $stream=$_GET['stream']; //stream mp3
+if(isset($_GET['earleft'])) $earleft= $_GET['earleft'];
+if(isset($_GET['earright'])) $earright= $_GET['earright'];
+if(isset($_GET['led1'])) $led1 = $_GET['led1'];
+if(isset($_GET['led2'])) $led2 = $_GET['led2'];
+if(isset($_GET['led3'])) $led3 = $_GET['led3'];
+if(isset($_GET['led4'])) $led4 = $_GET['led4'];
+if(isset($_GET['led0'])) $led0 = $_GET['led0'];
 
 $debug=false;
 
@@ -189,51 +197,6 @@ while($row = mysqli_fetch_row($result))
 
 mysqli_next_result($con);  //required to avoid sync error
 
-if(($sn == "00904B8C6C6D") || ($sn == '000000000000'))
-{
-	/*
-	$out = 	'./vl/FR/bin2/api.bin';
-	$msg = file_get_contents($out);
-	//echo $msg . '<P>';
-	
-	$data = unpack('C*', $msg);
-	//var_dump($data);
-	
-	//if($data[74] == 77) echo '<P>yes its a 77<P>';
-	
-	$data[74] = 1; //red
-	
-	//$packed='';
-	
-	for($i=1; $i<=count($data); $i++)
-	{
-		$packed .= pack('C*',$data[$i]);
-	}
-	
-	//var_dump($packed);
-	//echo "<P>$packed<P>";
-	
-	$hutch = "./vl/hutch/$sn";
-
-	if(! is_dir($hutch)) mkdir($hutch);
-	
-	$file="$hutch/api.bin";
-	
-	file_put_contents($file,$packed);
-	
-	$file = "../hutch/$sn/api.bin";  //the P3.jsp is in vl/FR/
-	
-	$min=$min+1;
-	if($min > 59) $min=0;  //send next minute.  this min already has a nop.bin
-	
-	queueV1($file,$rabbitID,$min,$con); //add item to queue
-	
-	echo 'OK';
-  mysqli_close($con);
-	exit(0);
-	*/
-}
-
 $min  = date("i"); //minute 00-59
 $sec  = date("s"); //secs 00-59
 
@@ -279,176 +242,219 @@ while($row = mysqli_fetch_row($result))
 
 if($count > 0)
 {
-	echo "Already queued.";
+	echo "Already queued.  You only get one request per minute.";
 	exit(0);
 }
 	
 mysqli_next_result($con);  //required to avoid sync error
 
 /**************************************************************
- * LED color
+ * LED color for V2
  ***************************************************************/
-if(strlen($color) > 0)
+if(isset($led1) || isset($led2) || isset($led3) || isset($led4) || isset($led0)) 
 {
-	if($version != '1')  //00:90:4B:8C:6C:6D
-	{
-	  	echo 'Not supported by V2 rabbits.';
-		return;
-	}
+	$cmd = '';
+	if(isset($led1)) $cmd .= "LED1 " . $led1 . "\n";
+	if(isset($led2)) $cmd .= "LED2 " . $led2 . "\n";
+	if(isset($led3)) $cmd .= "LED3 " . $led3 . "\n";
+	if(isset($led4)) $cmd .= "LED4 " . $led4 . "\n";
+	if(isset($led0)) $cmd .= "LED0 " . $led0 . "\n";
 
-	if(! is_numeric($color)) 
-	{
-		echo 'Color code must be numeric.';
-		return; //invalid code
-	}
-	
-	if($color < 1 || $color > 254)
-	{
-		echo 'Color code must be between 1 and 254.';
-		return;
-	}
-	
-	$out = 	'./vl/FR/bin2/api.bin';
-	$msg = file_get_contents($out);
-	
-	$data = unpack('C*', $msg);
-	
-	//var_dump($data);
-	
-	$data[74] = $color; //red
-	//echo '<P>checksum is ' . $data[117] . '<P>';
-	
-	$data[117] = $data[117]-$color+1; //checksum is 0x19 in source file, need to port checksum or port compiler
-	
-	for($i=1; $i<=count($data); $i++)
-		$packed .= pack('C*',$data[$i]);
-
-	//var_dump($packed);
-	//echo "<P>$packed<P>";
-	
-	$hutch = "./vl/hutch/$sn";
-
-	if(! is_dir($hutch)) mkdir($hutch);
-	
-	$file="$hutch/api.bin";
-	
-	if(file_exists($file)) unlink($file);
-	
-	file_put_contents($file,$packed);
-	
-	$file = "../hutch/$sn/api.bin";  //the P3.jsp is in vl/FR/
-	
-	queueV1($file,$rabbitID,$min,$con); //add item to queue
-	
+	queueCmd($sn,$min,$cmd,$con,$language,$rabbitID);
 	$wait = 60 - $sec;
-	
 	echo "OK. $wait seconds.";
-  	mysqli_close($con);
-	exit(0);
+	return;
+}
 
+/**************************************************************
+ * LED color for V1
+ ***************************************************************/
+if(isset($_GET['color']))
+{
+    if(strlen($color) > 0)
+    {
+        if($version != '1')  //00:90:4B:8C:6C:6D
+        {
+            echo 'Not supported by V2 rabbits.';
+            return;
+        }
+
+        if(! is_numeric($color)) 
+        {
+            echo 'Color code must be numeric.';
+            return; //invalid code
+        }
+    
+        if($color < 1 || $color > 254)
+        {
+            echo 'Color code must be between 1 and 254.';
+            return;
+        }
+    
+        $out = 	'./vl/FR/bin2/api.bin';
+        $msg = file_get_contents($out);
+    
+        $data = unpack('C*', $msg);
+    
+        //var_dump($data);
+    
+        $data[74] = $color; //red
+        //echo '<P>checksum is ' . $data[117] . '<P>';
+    
+        $data[117] = $data[117]-$color+1; //checksum is 0x19 in source file, need to port checksum or port compiler
+    
+        for($i=1; $i<=count($data); $i++)
+            $packed .= pack('C*',$data[$i]);
+
+        $hutch = "./vl/hutch/$sn";
+
+        if(! is_dir($hutch)) mkdir($hutch);
+    
+        $file="$hutch/api.bin";
+    
+        if(file_exists($file)) unlink($file);
+    
+        file_put_contents($file,$packed);
+    
+        $file = "../hutch/$sn/api.bin";  //the P3.jsp is in vl/FR/
+    
+        queueV1($file,$rabbitID,$min,$con); //add item to queue
+    
+        $wait = 60 - $sec;
+    
+        echo "OK. $wait seconds.";
+        mysqli_close($con);
+        exit(0);
+
+    }
+}
+
+/************************************************************
+ * Ears
+ ************************************************************/
+if( isset($_GET['earleft']) || isset($_GET['earright']) )
+{
+  	if($version == '1')  
+	{
+	 	echo 'Not supported by V1 rabbits.';
+		return;
+	}
+
+    $cmd = '';
+
+    if( isset($_GET['earleft']) ) 
+    {
+        if(strlen($earleft) > 0) 
+        {
+            if($earleft < 0 || $earleft > 15)
+            {
+                echo 'Are you trying to snap my ears off?  The valid range for ears is an integer between 0 and 15.';
+                return;
+            }
+            
+            $cmd = "EARLEFT $earleft\n";
+        }
+    }
+    
+    if( isset($_GET['earright']) )
+    {
+        if(strlen($earright) > 0) 
+        {
+            if($earright < 0 || $earright > 15)
+            {
+                echo 'Are you trying to snap my ears off?  The valid range for ears is an integer between 0 and 15.';
+                return;
+            }
+            
+            $cmd = $cmd . "EARRIGHT $earright\n";
+        }
+    }
+    
+    queueCmd($sn,$min,$cmd,$con,$language,$rabbitID);
+    $wait = 60 - $sec;
+    echo "OK. $wait seconds.";
+    return;
 }
 
 /************************************************************
  * TTS
  ************************************************************/
-$tts=substr($tts,0,100);  //max 100 chars
+if(isset($_GET['tts'])){
+    $tts=substr($tts,0,100);  //max 100 chars
 
-if(strlen($tts) > 0)
-{
-	if($version == '1')  //00:90:4B:8C:6C:6D
-	{
-	 	echo 'Not supported by V1 rabbits.';
-		return;
-	}
-	
-	queue($sn,$min,$tts,$con,$language,$rabbitID);
-	$wait = 60 - $sec;
-	echo "OK. $wait seconds.";
-  	return;
+    if(strlen($tts) > 0)
+    {
+        if($version == '1')  
+        {
+            echo 'Not supported by V1 rabbits.';
+            return;
+        }
+    
+        queue($sn,$min,$tts,$con,$language,$rabbitID);
+        $wait = 60 - $sec;
+        echo "OK. $wait seconds.";
+        return;
+    }
 }
 
 /************************************************************
  * PLAY MP3
  ************************************************************/
-$url=substr($play,0,244);  //max 244 chars in url
+if(isset($_GET['play'])){
+	$url=substr($play,0,244);  //max 244 chars in url
 
-if(strlen($url) > 0)
-{
-	if($version == '1')  //00:90:4B:8C:6C:6D
+	if(strlen($url) > 0)
 	{
-	  	echo 'Not supported by V1 rabbits.';
-	 	return;
-	}
-	
-	//$url = str_replace($url,'http://','');
-	
-	$cmd = "PLAY2 $url";
-	
-	/* doesn't quite get converted correctly so doesn't work
-	$len = strlen($url);
-	
-	$data = array(0x7F
-	             ,0x0A
-	             ,0x00
-	             ,0x00  
-	             ,$len + 11
-	             ,0x20
-	             ,ord('M')
-	             ,ord('C')
-	             ,0x20);
-
-	for($i=0; $i < $len; $i++)	
-		$data[] = ord($url[$i]);
-	
-	$data[] = 0xFF;
-	$data[] = 0x0A;
-	
-	var_dump($data);
+		if($version == '1')  
+		{
+		  	echo 'Not supported by V1 rabbits.';
+		 	return;
+		}
 		
-	$len = count($data);
-	
-	echo "<P>array length is $len";
-	
-	for($i=0; $i<=count($data); $i++)
-		$packed .= pack('C*',$data[$i]);
-
-	echo "<P>";
-	//var_dump($packed);
-	
-	$hutch = "./vl/hutch/$sn";
-	
-	if(! is_dir($hutch))
-		mkdir($hutch);
-	
-	$file = "$hutch/play.bin";
-	//echo $file;
-	if(file_exists($file)) unlink($file);
-	
-	file_put_contents($file,$packed);
-	*/
-	
-	queueCmd($sn,$min,$cmd,$con,$language,$rabbitID);
-	mysqli_close($con);
-	
-	$wait = 60 - $sec;
-	echo "OK. $wait seconds.";
-  	exit(0);
-
+		$cmd = "PLAY2 $url";
+		
+		queueCmd($sn,$min,$cmd,$con,$language,$rabbitID);
+		mysqli_close($con);
+		
+		$wait = 60 - $sec;
+		echo "OK. $wait seconds.";
+	  	exit(0);
+	}
 }
 
 /************************************************************
- * PLAY MP3
+ * STREAM
  ************************************************************/
 $url=substr($stream,0,244);  //max 244 chars in url
 
 if(strlen($url) > 0)
 {
-	if($version == '1')  //00:90:4B:8C:6C:6D
+	if($version == '1')  
 	{
 	  	echo 'Not supported by V1 rabbits.';
 	 	return;
 	}
 	
+	//if .m3u, get the containing url
+    if(strstr($url,'.m3u')){
+        // create a new cURL resource
+        $ch = curl_init();
+
+        // set URL and other appropriate options
+        curl_setopt($ch, CURLOPT_URL, $stream);
+        curl_setopt($ch, CURLOPT_HEADER, 0);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+
+        // grab URL
+        $url = curl_exec($ch);
+        $url = trim($url);
+        
+        // close cURL resource, and free up system resources
+        curl_close($ch);
+
+        echo "Found $url. To end streaming, click your rabbit's button. ";
+    }
+
 	$cmd = "STREAM $url\nFINISH";
 
 	queueCmd($sn,$min,$cmd,$con,$language,$rabbitID);
@@ -567,10 +573,10 @@ function queue($serNbr,$min,$tts,$con,$lang,$rabbitID)
 
 	$lang = getLanguage($lang);
 	
-	doTTS($tts,$lang,$serNbr);
+	doTTS2($tts,$lang,$serNbr);
 		
 	$hutch = "./hutch/$serNbr";
-    $msg="PLAY $hutch/tts.mp3";
+    $msg="PLAY $hutch/rss.mp3";
 
 	$cmd = "call sp_Queue('" . $serNbr . "'
 											 ,'" . $min . "'
@@ -646,28 +652,6 @@ function outV1($out,$rabbitID,$min,$con)
 	
 	mysqli_next_result($con);  //required to avoid sync error
 }
-
-
-/*****************************************************************
- * RSS feed thru google
- *****************************************************************/
-function doTTS($t,$lang,$sn) 
-{
-	$hutch = "./vl/hutch/$sn";
-
-	if(! is_dir($hutch))
-		mkdir($hutch);
-	
-	//send to google TTS
-	$request = "http://translate.google.com/translate_tts?tl=$lang&q=" . urlencode($t);
-	
-	//curl and save to mp3
-	$response = goCurl($request);
-	if(strlen($response) < 1) return;  //no response from service
-	
-	$file="$hutch/tts.mp3";
-	writeToFile($file,$response);
-}	
 
 ?>
 </html>
